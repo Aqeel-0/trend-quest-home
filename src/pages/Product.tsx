@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import ProductGallery from "@/components/ProductGallery";
 import PriceComparisonTable, { Offer } from "@/components/PriceComparisonTable";
@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import ProductCard, { type Product as ProductCardType } from "@/components/ProductCard";
 import { Star } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 import prodHeadphones from "@/assets/prod-headphones.jpg";
 import prodLaptop from "@/assets/prod-laptop.jpg";
@@ -32,8 +33,26 @@ function RatingStars({ rating }: { rating: number }) {
 export default function Product() {
   const { id } = useParams();
 
+  type Variants = {
+    colors?: { name: string; hex: string }[];
+    ram?: string[];
+    storage?: string[];
+  };
+
+  type ProductData = {
+    id: string;
+    title: string;
+    images: string[];
+    rating: number;
+    reviews: number;
+    short: string;
+    features: string[];
+    priceRange: string;
+    variants?: Variants;
+  };
+
   // Mock product; in real app, fetch by id
-  const product = useMemo(
+  const product = useMemo<ProductData>(
     () => ({
       id: id ?? "1",
       title: "Wireless Noise-Cancelling Headphones",
@@ -48,11 +67,30 @@ export default function Product() {
         "Memory foam ear cushions",
       ],
       priceRange: "$149 — $189",
+      variants: {
+        colors: [
+          { name: "Black", hex: "#111827" },
+          { name: "Silver", hex: "#D1D5DB" },
+          { name: "Blue", hex: "#1D4ED8" },
+        ],
+        // ram: ["8 GB", "12 GB", "16 GB"],
+        // storage: ["128 GB", "256 GB", "512 GB"],
+      },
     }),
     [id]
   );
 
-  const offers: Offer[] = [
+const [selectedColor, setSelectedColor] = useState<string | undefined>(undefined);
+const [selectedRam, setSelectedRam] = useState<string | undefined>(undefined);
+const [selectedStorage, setSelectedStorage] = useState<string | undefined>(undefined);
+
+useEffect(() => {
+  setSelectedColor((prev) => prev ?? product.variants?.colors?.[0]?.name);
+  setSelectedRam((prev) => prev ?? product.variants?.ram?.[0]);
+  setSelectedStorage((prev) => prev ?? product.variants?.storage?.[0]);
+}, [product]);
+
+const offers: Offer[] = [
     { store: "NovaMart", price: "$149.00", delivery: "Free 2–4 days", url: "#", inStock: true },
     { store: "QuickBuy", price: "$159.00", delivery: "$5 • Next day", url: "#", inStock: true },
     { store: "Shoply", price: "$169.00", delivery: "Free • 5–7 days", url: "#", inStock: true },
@@ -157,6 +195,81 @@ export default function Product() {
               <li key={f}>{f}</li>
             ))}
           </ul>
+          
+          {/* Variants (render only if available) */}
+          {(product.variants?.colors?.length ||
+            product.variants?.ram?.length ||
+            product.variants?.storage?.length) ? (
+            <div className="rounded-lg border p-4 space-y-4">
+              {product.variants?.colors?.length ? (
+                <div>
+                  <div className="mb-2 text-sm font-medium">
+                    Color{selectedColor ? `: ${selectedColor}` : ""}
+                  </div>
+                  <RadioGroup
+                    className="flex flex-wrap gap-3"
+                    value={selectedColor}
+                    onValueChange={setSelectedColor}
+                  >
+                    {(product.variants?.colors ?? []).map((c) => (
+                      <label key={c.name} className="cursor-pointer">
+                        <RadioGroupItem
+                          value={c.name}
+                          aria-label={c.name}
+                          className="h-7 w-7 rounded-full border border-input ring-offset-background data-[state=checked]:ring-2 data-[state=checked]:ring-primary data-[state=checked]:ring-offset-2 [&_svg]:hidden"
+                          style={{ backgroundColor: c.hex }}
+                        />
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </div>
+              ) : null}
+
+              {product.variants?.ram?.length ? (
+                <div>
+                  <div className="mb-2 text-sm font-medium">
+                    RAM{selectedRam ? `: ${selectedRam}` : ""}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(product.variants?.ram ?? []).map((r) => (
+                      <Button
+                        key={r}
+                        type="button"
+                        size="sm"
+                        variant={selectedRam === r ? "default" : "outline"}
+                        onClick={() => setSelectedRam(r)}
+                        aria-pressed={selectedRam === r}
+                      >
+                        {r}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {product.variants?.storage?.length ? (
+                <div>
+                  <div className="mb-2 text-sm font-medium">
+                    Storage{selectedStorage ? `: ${selectedStorage}` : ""}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(product.variants?.storage ?? []).map((s) => (
+                      <Button
+                        key={s}
+                        type="button"
+                        size="sm"
+                        variant={selectedStorage === s ? "default" : "outline"}
+                        onClick={() => setSelectedStorage(s)}
+                        aria-pressed={selectedStorage === s}
+                      >
+                        {s}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="pt-2">
             <PriceComparisonTable offers={offers} />
