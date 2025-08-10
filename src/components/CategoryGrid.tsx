@@ -27,7 +27,7 @@ const CategoryGrid = () => {
           {categories.map(({ name, Icon }) => (
             <Link key={name} to={`/category/${name.toLowerCase().replace(/\s+/g, "-")}`} aria-label={`Browse ${name} deals`} className="block">
               <Card className="hover-scale cursor-pointer shadow-subtle hover:shadow-elevated transition-shadow">
-                <CardContent className="flex flex-col items-center justify-center gap-3 py-6">
+                <CardContent className="flex flex-col items-center justify-center gap-2 p-0">
                   <div className="rounded-xl bg-secondary p-4">
                     <Icon className="h-6 w-6 text-foreground" aria-hidden />
                   </div>
