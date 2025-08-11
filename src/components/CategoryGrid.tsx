@@ -25,9 +25,9 @@ const CategoryGrid = () => {
         <h2 id="categories" className="text-2xl md:text-3xl font-semibold mb-6">Browse categories</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
           {categories.map(({ name, Icon }) => (
-            <Link key={name} to={`/category/${name.toLowerCase().replace(/\s+/g, "-")}`} aria-label={`Browse ${name} deals`} className="block">
-              <Card className="hover-scale cursor-pointer shadow-subtle hover:shadow-elevated transition-shadow">
-                <CardContent className="flex flex-col items-center justify-center gap-2 px-0 py-0">
+            <Link key={name} to={`/category/${name.toLowerCase().replace(/\s+/g, "-")}`} aria-label={`Browse ${name} deals`} className="inline-block">
+              <Card className="hover-scale cursor-pointer shadow-subtle hover:shadow-elevated transition-shadow inline-flex w-auto">
+                <CardContent className="inline-flex flex-col items-center gap-1 p-0">
                   <div className="rounded-xl bg-secondary p-4">
                     <Icon className="h-6 w-6 text-foreground" aria-hidden />
                   </div>
