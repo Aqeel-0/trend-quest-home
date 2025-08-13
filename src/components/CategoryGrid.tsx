@@ -25,15 +25,9 @@ const CategoryGrid = () => {
         <h2 id="categories" className="text-2xl md:text-3xl font-semibold mb-6">Browse categories</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6 justify-items-center">
           {categories.map(({ name, Icon }) => (
-            <Link key={name} to={`/category/${name.toLowerCase().replace(/\s+/g, "-")}`} aria-label={`Browse ${name} deals`} className="inline-block">
-              <Card className="hover-scale cursor-pointer shadow-subtle hover:shadow-elevated transition-shadow inline-flex w-auto">
-                <CardContent className="inline-flex flex-col items-center gap-1 p-0">
-                  <div className="p-4">
-                    <Icon className="h-6 w-6 text-foreground" aria-hidden />
-                  </div>
-                  <span className="text-sm md:text-base font-medium">{name}</span>
-                </CardContent>
-              </Card>
+            <Link key={name} to={`/category/${name.toLowerCase().replace(/\s+/g, "-")}`} aria-label={`Browse ${name} deals`} className="inline-flex flex-col items-center gap-1 hover-scale cursor-pointer transition-transform">
+              <Icon className="h-6 w-6 text-foreground" aria-hidden />
+              <span className="text-sm md:text-base font-medium">{name}</span>
             </Link>
           ))}
         </div>
