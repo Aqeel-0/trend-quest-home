@@ -11,19 +11,9 @@ export default function ProductGallery({ images, alt }: ProductGalleryProps) {
   const [current, setCurrent] = useState(0);
 
   return (
-    <div className="space-y-4">
-      <div className="group overflow-hidden rounded-lg bg-muted/40">
-        <AspectRatio ratio={1}>
-          <img
-            src={images[current]}
-            alt={alt}
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-            loading="eager"
-          />
-        </AspectRatio>
-      </div>
-
-      <div className="grid grid-cols-5 gap-2 sm:gap-3">
+    <div className="flex gap-4">
+      {/* Thumbnails on the left */}
+      <div className="flex flex-col gap-2 sm:gap-3 w-20">
         {images.map((src, idx) => (
           <button
             key={src + idx}
@@ -47,6 +37,18 @@ export default function ProductGallery({ images, alt }: ProductGalleryProps) {
             </AspectRatio>
           </button>
         ))}
+      </div>
+
+      {/* Main image on the right */}
+      <div className="group overflow-hidden rounded-lg bg-muted/40 flex-1 max-w-md">
+        <AspectRatio ratio={1}>
+          <img
+            src={images[current]}
+            alt={alt}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            loading="eager"
+          />
+        </AspectRatio>
       </div>
     </div>
   );
