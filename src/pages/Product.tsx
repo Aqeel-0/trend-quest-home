@@ -55,26 +55,28 @@ export default function Product() {
   const product = useMemo<ProductData>(
     () => ({
       id: id ?? "1",
-      title: "Wireless Noise-Cancelling Headphones",
-      images: [prodHeadphones, prodWatch, prodLaptop, prodController],
-      rating: 4.6,
-      reviews: 1284,
-      short: "Premium over‑ear headphones with adaptive noise cancellation and 30‑hour battery life.",
+      title: "Acme Nova Smartphone X",
+      images: [prodLaptop, prodWatch, prodController, prodHeadphones],
+      rating: 4.8,
+      reviews: 2156,
+      short: "Flagship smartphone with AI-powered camera, 120Hz OLED display, and all-day battery life.",
       features: [
-        "Adaptive ANC with transparency",
-        "Bluetooth 5.3, multipoint",
-        "30h battery, USB‑C fast charging",
-        "Memory foam ear cushions",
+        "6.7-inch 120Hz OLED display",
+        "Triple camera system with AI enhancement",
+        "5G connectivity with Wi-Fi 6E",
+        "Wireless charging & reverse charging",
+        "IP68 water and dust resistance",
       ],
-      priceRange: "$149 — $189",
+      priceRange: "$699 — $1,299",
       variants: {
         colors: [
-          { name: "Black", hex: "#111827" },
-          { name: "Silver", hex: "#D1D5DB" },
-          { name: "Blue", hex: "#1D4ED8" },
+          { name: "Midnight Black", hex: "#1a1a1a" },
+          { name: "Silver", hex: "#e5e5e5" },
+          { name: "Ocean Blue", hex: "#1e40af" },
+          { name: "Rose Gold", hex: "#f59e0b" },
         ],
-        // ram: ["8 GB", "12 GB", "16 GB"],
-        // storage: ["128 GB", "256 GB", "512 GB"],
+        ram: ["8GB", "12GB", "16GB"],
+        storage: ["128GB", "256GB", "512GB", "1TB"],
       },
     }),
     [id]
@@ -91,10 +93,10 @@ useEffect(() => {
 }, [product]);
 
 const offers: Offer[] = [
-    { store: "NovaMart", price: "$149.00", delivery: "Free 2–4 days", url: "#", inStock: true },
-    { store: "QuickBuy", price: "$159.00", delivery: "$5 • Next day", url: "#", inStock: true },
-    { store: "Shoply", price: "$169.00", delivery: "Free • 5–7 days", url: "#", inStock: true },
-    { store: "PriceHub", price: "$189.00", delivery: "$7 • 3–5 days", url: "#", inStock: false },
+    { store: "NovaMart", price: "$699.00", delivery: "Free 2–4 days", url: "#", inStock: true },
+    { store: "QuickBuy", price: "$749.00", delivery: "$5 • Next day", url: "#", inStock: true },
+    { store: "Shoply", price: "$799.00", delivery: "Free • 5–7 days", url: "#", inStock: true },
+    { store: "PriceHub", price: "$1,299.00", delivery: "$7 • 3–5 days", url: "#", inStock: false },
   ];
 
   const related: ProductCardType[] = [
@@ -152,7 +154,7 @@ const offers: Offer[] = [
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to="/category/headphones">Headphones</Link>
+              <Link to="/category/smartphones">Smartphones</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -289,10 +291,10 @@ const offers: Offer[] = [
             <Card>
               <CardContent className="space-y-3 leading-relaxed p-4 md:p-6">
                 <p>
-                  Experience immersive sound with adaptive noise cancellation, engineered for focus and comfort. Soft memory foam cushions provide all‑day wear while the precision drivers deliver studio‑quality audio.
+                  Experience the future of mobile technology with the Acme Nova Smartphone X. Featuring a stunning 6.7-inch 120Hz OLED display that brings content to life with vibrant colors and smooth scrolling.
                 </p>
                 <p>
-                  Connect to multiple devices at once and switch seamlessly. With up to 30 hours of battery life, you can enjoy uninterrupted listening throughout your day.
+                  The advanced AI-powered triple camera system captures professional-quality photos and videos in any lighting condition. With 5G connectivity and all-day battery life, stay connected and productive wherever you go.
                 </p>
               </CardContent>
             </Card>
@@ -301,11 +303,11 @@ const offers: Offer[] = [
             <Card>
               <CardContent className="p-4 md:p-6">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Spec label="Connectivity" value="Bluetooth 5.3 (AAC, SBC)" />
-                  <Spec label="Battery" value="Up to 30 hours" />
-                  <Spec label="Charging" value="USB‑C fast charge (10 min = 5 hrs)" />
-                  <Spec label="Weight" value="265 g" />
-                  <Spec label="Microphones" value="4 ANC + 2 voice" />
+                  <Spec label="Display" value="6.7-inch 120Hz OLED" />
+                  <Spec label="Processor" value="Octa-core 3.2GHz" />
+                  <Spec label="Camera" value="108MP + 12MP + 12MP" />
+                  <Spec label="Battery" value="4800mAh with wireless charging" />
+                  <Spec label="OS" value="Android 14" />
                   <Spec label="Warranty" value="24 months" />
                 </div>
               </CardContent>
@@ -316,14 +318,14 @@ const offers: Offer[] = [
               <CardContent className="space-y-4 p-4 md:p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <RatingStars rating={4.6} />
+                    <RatingStars rating={4.8} />
                     <span className="text-sm text-muted-foreground">Based on {product.reviews.toLocaleString()} reviews</span>
                   </div>
                   <Button variant="secondary">Write a review</Button>
                 </div>
                 <div className="space-y-3 text-sm text-muted-foreground">
-                  <p>“Fantastic ANC and comfort. Battery easily lasts a week of commuting.”</p>
-                  <p>“Multipoint works flawlessly between my laptop and phone.”</p>
+                  <p>“Amazing camera quality and the 120Hz display is incredibly smooth. Best phone I've owned!”</p>
+                  <p>“Battery easily lasts a full day even with heavy use. 5G speeds are impressive.”</p>
                 </div>
               </CardContent>
             </Card>
@@ -335,7 +337,7 @@ const offers: Offer[] = [
       <section className="mt-12">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold">Related products</h2>
-          <Link to="/category/headphones" className="text-sm underline underline-offset-4">See all</Link>
+          <Link to="/category/smartphones" className="text-sm underline underline-offset-4">See all</Link>
         </div>
         <Carousel opts={{ align: "start", loop: true }}>
           <CarouselContent>

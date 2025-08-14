@@ -68,7 +68,7 @@ const ALL_BRANDS = ["Acme", "Orion", "Zenith", "Pulse", "Nimbus"] as const;
 
 // Mock data for demo
 const MOCK_PRODUCTS: CategoryProduct[] = [
-  { id: "1", title: "Acme Nova Smartphone X", image: imgSneakers, brand: "Acme", priceMin: 699, priceMax: 799, lowestPrice: 699, store: "NovaMart", rating: 4.5, available: true },
+  { id: "1", title: "Acme Nova Smartphone X", image: imgSneakers, brand: "Acme", priceMin: 699, priceMax: 1299, lowestPrice: 699, store: "NovaMart", rating: 4.8, available: true },
   { id: "2", title: "Orion Ultra Laptop 14\"", image: imgLaptop, brand: "Orion", priceMin: 999, priceMax: 1299, lowestPrice: 999, store: "PriceHub", rating: 4.2, available: true },
   { id: "3", title: "Zenith NoiseCancel Headphones", image: imgHeadphones, brand: "Zenith", priceMin: 149, priceMax: 199, lowestPrice: 149, store: "QuickBuy", rating: 4.7, available: true },
   { id: "4", title: "Pulse Action Game Controller", image: imgController, brand: "Pulse", priceMin: 49, priceMax: 79, lowestPrice: 49, store: "Shoply", rating: 4.0, available: false },
@@ -82,37 +82,47 @@ const toTitle = (s: string) => s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.to
 
 const CategoryProductCard: React.FC<{ product: CategoryProduct; onQuickView: (p: CategoryProduct) => void; }> = ({ product, onQuickView }) => {
   return (
-    <Card className="group relative overflow-hidden shadow-subtle transition-shadow hover:shadow-elevated">
-      <div className="aspect-[4/3] bg-muted/40 overflow-hidden">
-        <img src={product.image} alt={`${product.title} product image`} className="h-full w-full object-cover" loading="lazy" />
-      </div>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2">
-          <h3 className="font-medium leading-tight line-clamp-2">{product.title}</h3>
-          <span className={cn("inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold", storeColor[product.store] ?? "bg-muted")} aria-label={`Store ${product.store}`}>
-            {initials(product.store)}
-          </span>
+    <Link to={`/product/${product.id}`} className="block">
+      <Card className="group relative overflow-hidden shadow-subtle transition-shadow hover:shadow-elevated h-full">
+        <div className="aspect-[4/3] bg-muted/40 overflow-hidden">
+          <img src={product.image} alt={`${product.title} product image`} className="h-full w-full object-cover" loading="lazy" />
         </div>
-        <div className="mt-3 space-y-1">
-          <div className="text-sm text-muted-foreground">Price range</div>
-          <div className="text-lg font-semibold">{currency(product.priceMin)} – {currency(product.priceMax)}</div>
-          <div className="text-xs text-muted-foreground">Lowest at <span className="font-medium text-foreground">{product.store}</span></div>
-        </div>
-        <div className="mt-3 flex items-center justify-between">
-          <div className="flex items-center gap-1 text-sm" aria-label={`Rating ${product.rating} out of 5`}>
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star key={i} className={cn("h-4 w-4", i + 1 <= Math.round(product.rating) ? "text-primary" : "text-muted-foreground")} />
-            ))}
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-medium leading-tight line-clamp-2">{product.title}</h3>
+            <span className={cn("inline-flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold", storeColor[product.store] ?? "bg-muted")} aria-label={`Store ${product.store}`}>
+              {initials(product.store)}
+            </span>
           </div>
-          <Badge variant="secondary">{currency(product.lowestPrice)}</Badge>
+          <div className="mt-3 space-y-1">
+            <div className="text-sm text-muted-foreground">Price range</div>
+            <div className="text-lg font-semibold">{currency(product.priceMin)} – {currency(product.priceMax)}</div>
+            <div className="text-xs text-muted-foreground">Lowest at <span className="font-medium text-foreground">{product.store}</span></div>
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <div className="flex items-center gap-1 text-sm" aria-label={`Rating ${product.rating} out of 5`}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star key={i} className={cn("h-4 w-4", i + 1 <= Math.round(product.rating) ? "text-primary" : "text-muted-foreground")} />
+              ))}
+            </div>
+            <Badge variant="secondary">{currency(product.lowestPrice)}</Badge>
+          </div>
+        </CardContent>
+        <div className="absolute inset-x-0 bottom-3 flex justify-center opacity-0 transition-opacity group-hover:opacity-100">
+          <Button 
+            size="sm" 
+            variant="secondary" 
+            onClick={(e) => {
+              e.preventDefault();
+              onQuickView(product);
+            }} 
+            aria-label={`Quick view ${product.title}`}
+          >
+            Quick view
+          </Button>
         </div>
-      </CardContent>
-      <div className="absolute inset-x-0 bottom-3 flex justify-center opacity-0 transition-opacity group-hover:opacity-100">
-        <Button size="sm" variant="secondary" onClick={() => onQuickView(product)} aria-label={`Quick view ${product.title}`}>
-          Quick view
-        </Button>
-      </div>
-    </Card>
+      </Card>
+    </Link>
   );
 };
 
