@@ -165,11 +165,11 @@ const offers: Offer[] = [
       </Breadcrumb>
 
       {/* Main layout */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-3 xl:gap-8">
-        <div className="lg:col-span-1">
+      <div className="mt-6 grid gap-8 lg:grid-cols-5 xl:gap-10">
+        <div className="lg:col-span-2">
           <ProductGallery images={product.images} alt={product.title} />
         </div>
-        <div className="lg:col-span-2 space-y-5">
+        <div className="lg:col-span-3 space-y-5">
           <div>
             <h1 className="text-2xl font-semibold leading-tight">{product.title}</h1>
             <div className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
