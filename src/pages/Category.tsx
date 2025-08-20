@@ -67,15 +67,8 @@ const initials = (name: string) => name.split(" ").map((n) => n[0]).join("").sli
 
 const ALL_BRANDS = ["Acme", "Orion", "Zenith", "Pulse", "Nimbus"] as const;
 
-// Mock data for demo
-const MOCK_PRODUCTS: CategoryProduct[] = [
-  { id: "1", title: "Acme Nova Smartphone X", image: imgSneakers, brand: "Acme", priceMin: 699, priceMax: 1299, lowestPrice: 699, store: "NovaMart", rating: 4.8, available: true, shopsCount: 12 },
-  { id: "2", title: "Orion Ultra Laptop 14\"", image: imgLaptop, brand: "Orion", priceMin: 999, priceMax: 1299, lowestPrice: 999, store: "PriceHub", rating: 4.2, available: true, shopsCount: 8 },
-  { id: "3", title: "Zenith NoiseCancel Headphones", image: imgHeadphones, brand: "Zenith", priceMin: 149, priceMax: 199, lowestPrice: 149, store: "QuickBuy", rating: 4.7, available: true, shopsCount: 15 },
-  { id: "4", title: "Pulse Action Game Controller", image: imgController, brand: "Pulse", priceMin: 49, priceMax: 79, lowestPrice: 49, store: "Shoply", rating: 4.0, available: false, shopsCount: 6 },
-  { id: "5", title: "Nimbus Smartwatch Pro", image: imgWatch, brand: "Nimbus", priceMin: 199, priceMax: 249, lowestPrice: 199, store: "NovaMart", rating: 4.3, available: true, shopsCount: 9 },
-  { id: "6", title: "Acme Barista Coffee Maker", image: imgCoffee, brand: "Acme", priceMin: 89, priceMax: 129, lowestPrice: 89, store: "PriceHub", rating: 3.9, available: true, shopsCount: 11 },
-];
+import { useProductsByCategory } from "@/hooks/useProducts";
+import { formatCurrency } from "@/utils/currency";
 
 // Helpers
 const currency = (n: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(n);
@@ -131,6 +124,28 @@ const Category: React.FC = () => {
   const { toast } = useToast();
 
   const categoryName = useMemo(() => toTitle(slug ?? "Category"), [slug]);
+  const { data: products, isLoading } = useProductsByCategory(slug ?? "");
+
+  // Convert Supabase products to CategoryProduct format
+  const categoryProducts: CategoryProduct[] = useMemo(() => {
+    if (!products) return [];
+    
+    const fallbackImages = [imgHeadphones, imgSneakers, imgWatch, imgLaptop, imgController, imgCoffee];
+    
+    return products.map((product, index) => ({
+      id: product.id,
+      title: product.model_name,
+      image: fallbackImages[index % fallbackImages.length],
+      brand: product.brands.name,
+      priceMin: product.min_price || 0,
+      priceMax: product.max_price || product.min_price || 0,
+      lowestPrice: product.min_price || 0,
+      store: "Multiple stores",
+      rating: product.rating || 4.0,
+      available: product.is_active,
+      shopsCount: Math.floor(Math.random() * 15) + 1, // Random for demo
+    }));
+  }, [products]);
 
   // SEO updates
   useEffect(() => {
@@ -185,7 +200,7 @@ const Category: React.FC = () => {
   const [visible, setVisible] = useState<number>(6);
 
   const filtered = useMemo(() => {
-    let list = [...MOCK_PRODUCTS];
+    let list = [...categoryProducts];
 
     list = list.filter((p) => p.priceMin >= price[0] && p.priceMax <= price[1]);
     if (brands.length) list = list.filter((p) => brands.includes(p.brand));
@@ -208,7 +223,7 @@ const Category: React.FC = () => {
     }
 
     return list;
-  }, [brands, inStockOnly, minRating, price, sort]);
+  }, [brands, inStockOnly, minRating, price, sort, categoryProducts]);
 
   const onQuickView = (p: CategoryProduct) => {
     toast({ title: p.title, description: `${currency(p.lowestPrice)} at ${p.store}` });
@@ -277,6 +292,32 @@ const Category: React.FC = () => {
   );
 
   const visibleProducts = filtered.slice(0, visible);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen">
+        <header className="border-b bg-background">
+          <div className="container py-6">
+            <div className="h-4 bg-muted animate-pulse rounded w-40 mb-4" />
+            <div className="h-8 bg-muted animate-pulse rounded w-60" />
+          </div>
+        </header>
+        <main className="container py-6 md:py-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 md:gap-8">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="border rounded-lg overflow-hidden">
+                <div className="aspect-[3/2] bg-muted animate-pulse" />
+                <div className="p-4 space-y-2">
+                  <div className="h-4 bg-muted animate-pulse rounded" />
+                  <div className="h-6 bg-muted animate-pulse rounded w-20" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">

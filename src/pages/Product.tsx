@@ -11,6 +11,8 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import ProductCard, { type Product as ProductCardType } from "@/components/ProductCard";
 import { Star } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useProduct, useProductVariants, useProducts } from "@/hooks/useProducts";
+import { formatCurrency } from "@/utils/currency";
 
 import prodHeadphones from "@/assets/prod-headphones.jpg";
 import prodLaptop from "@/assets/prod-laptop.jpg";
@@ -32,6 +34,12 @@ function RatingStars({ rating }: { rating: number }) {
 
 export default function Product() {
   const { id } = useParams();
+  
+  const { data: product, isLoading: productLoading } = useProduct(id ?? "");
+  const { data: variants, isLoading: variantsLoading } = useProductVariants(id ?? "");
+  const { data: relatedProducts } = useProducts(4);
+
+  const isLoading = productLoading || variantsLoading;
 
   type Variants = {
     colors?: { name: string; hex: string }[];
@@ -52,34 +60,52 @@ export default function Product() {
   };
 
   // Mock product; in real app, fetch by id
-  const product = useMemo<ProductData>(
-    () => ({
-      id: id ?? "1",
-      title: "Acme Nova Smartphone X",
-      images: [prodLaptop, prodWatch, prodController, prodHeadphones],
-      rating: 4.8,
-      reviews: 2156,
-      short: "Flagship smartphone with AI-powered camera, 120Hz OLED display, and all-day battery life.",
-      features: [
-        "6.7-inch 120Hz OLED display",
-        "Triple camera system with AI enhancement",
-        "5G connectivity with Wi-Fi 6E",
-        "Wireless charging & reverse charging",
-        "IP68 water and dust resistance",
-      ],
-      priceRange: "$699 — $1,299",
-      variants: {
-        colors: [
-          { name: "Midnight Black", hex: "#1a1a1a" },
-          { name: "Silver", hex: "#e5e5e5" },
-          { name: "Ocean Blue", hex: "#1e40af" },
-          { name: "Rose Gold", hex: "#f59e0b" },
+  const productData = useMemo<ProductData>(
+    () => {
+      if (!product) {
+        return {
+          id: id ?? "1",
+          title: "Loading...",
+          images: [prodLaptop, prodWatch, prodController, prodHeadphones],
+          rating: 0,
+          reviews: 0,
+          short: "",
+          features: [],
+          priceRange: "Loading...",
+          variants: undefined,
+        };
+      }
+
+      return {
+        id: product.id,
+        title: product.model_name,
+        images: [prodLaptop, prodWatch, prodController, prodHeadphones], // Use fallback images
+        rating: product.rating || 4.5,
+        reviews: Math.floor(Math.random() * 2000) + 100, // Random for demo
+        short: product.description || "Product description not available.",
+        features: product.specifications?.features || [
+          "High-quality construction",
+          "Advanced technology",
+          "Reliable performance",
+          "Excellent value",
+          "Customer satisfaction guaranteed",
         ],
-        ram: ["8GB", "12GB", "16GB"],
-        storage: ["128GB", "256GB", "512GB", "1TB"],
-      },
-    }),
-    [id]
+        priceRange: product.min_price && product.max_price 
+          ? `${formatCurrency(product.min_price)} — ${formatCurrency(product.max_price)}`
+          : "Price not available",
+        variants: {
+          colors: [
+            { name: "Midnight Black", hex: "#1a1a1a" },
+            { name: "Silver", hex: "#e5e5e5" },
+            { name: "Ocean Blue", hex: "#1e40af" },
+            { name: "Rose Gold", hex: "#f59e0b" },
+          ],
+          ram: ["8GB", "12GB", "16GB"],
+          storage: ["128GB", "256GB", "512GB", "1TB"],
+        },
+      };
+    },
+    [id, product]
   );
 
 const [selectedColor, setSelectedColor] = useState<string | undefined>(undefined);
@@ -87,31 +113,63 @@ const [selectedRam, setSelectedRam] = useState<string | undefined>(undefined);
 const [selectedStorage, setSelectedStorage] = useState<string | undefined>(undefined);
 
 useEffect(() => {
-  setSelectedColor((prev) => prev ?? product.variants?.colors?.[0]?.name);
-  setSelectedRam((prev) => prev ?? product.variants?.ram?.[0]);
-  setSelectedStorage((prev) => prev ?? product.variants?.storage?.[0]);
-}, [product]);
+  setSelectedColor((prev) => prev ?? productData.variants?.colors?.[0]?.name);
+  setSelectedRam((prev) => prev ?? productData.variants?.ram?.[0]);
+  setSelectedStorage((prev) => prev ?? productData.variants?.storage?.[0]);
+}, [productData]);
 
-const offers: Offer[] = [
-    { store: "NovaMart", price: "$699.00", delivery: "Free 2–4 days", url: "#", inStock: true },
-    { store: "QuickBuy", price: "$749.00", delivery: "$5 • Next day", url: "#", inStock: true },
-    { store: "Shoply", price: "$799.00", delivery: "Free • 5–7 days", url: "#", inStock: true },
-    { store: "PriceHub", price: "$1,299.00", delivery: "$7 • 3–5 days", url: "#", inStock: false },
-  ];
+// Convert variants and listings to offers
+const offers: Offer[] = useMemo(() => {
+  if (!variants || variants.length === 0) {
+    return [
+      { store: "NovaMart", price: productData.priceRange, delivery: "Free 2–4 days", url: "#", inStock: true },
+      { store: "QuickBuy", price: productData.priceRange, delivery: "$5 • Next day", url: "#", inStock: true },
+      { store: "Shoply", price: productData.priceRange, delivery: "Free • 5–7 days", url: "#", inStock: true },
+    ];
+  }
 
-  const related: ProductCardType[] = [
-    { id: "rel-1", title: "Ergonomic Wireless Mouse", image: prodController, lowestPrice: "$29.99", store: "NovaMart" },
-    { id: "rel-2", title: "Portable Bluetooth Speaker", image: prodWatch, lowestPrice: "$49.00", store: "QuickBuy" },
-    { id: "rel-3", title: "USB‑C Fast Charger 65W", image: prodLaptop, lowestPrice: "$24.50", store: "Shoply" },
-    { id: "rel-4", title: "Hi‑Res In‑Ear Monitors", image: prodHeadphones, lowestPrice: "$89.00", store: "PriceHub" },
-  ];
+  const allOffers: Offer[] = [];
+  variants.forEach(variant => {
+    variant.listings.forEach(listing => {
+      allOffers.push({
+        store: listing.store_name,
+        price: formatCurrency(listing.price),
+        delivery: "Free shipping",
+        url: listing.url,
+        inStock: listing.stock_status === 'in_stock',
+      });
+    });
+  });
+
+  return allOffers.slice(0, 4); // Limit to 4 offers
+}, [variants, productData.priceRange]);
+
+  const related: ProductCardType[] = useMemo(() => {
+    if (!relatedProducts) {
+      return [
+        { id: "rel-1", title: "Ergonomic Wireless Mouse", image: prodController, lowestPrice: "$29.99", store: "NovaMart" },
+        { id: "rel-2", title: "Portable Bluetooth Speaker", image: prodWatch, lowestPrice: "$49.00", store: "QuickBuy" },
+        { id: "rel-3", title: "USB‑C Fast Charger 65W", image: prodLaptop, lowestPrice: "$24.50", store: "Shoply" },
+        { id: "rel-4", title: "Hi‑Res In‑Ear Monitors", image: prodHeadphones, lowestPrice: "$89.00", store: "PriceHub" },
+      ];
+    }
+
+    const fallbackImages = [prodController, prodWatch, prodLaptop, prodHeadphones];
+    return relatedProducts.map((product, index) => ({
+      id: product.id,
+      title: product.model_name,
+      image: fallbackImages[index % fallbackImages.length],
+      lowestPrice: product.min_price ? formatCurrency(product.min_price) : "N/A",
+      store: "Multiple stores",
+    }));
+  }, [relatedProducts]);
 
   useEffect(() => {
-    const title = `${product.title} | Best Prices & Comparison`;
+    const title = `${productData.title} | Best Prices & Comparison`;
     document.title = title;
 
     const meta = document.querySelector('meta[name="description"]');
-    const description = `${product.title} – compare prices across stores. ${product.short}`.slice(0, 155);
+    const description = `${productData.title} – compare prices across stores. ${productData.short}`.slice(0, 155);
     if (meta) meta.setAttribute("content", description);
     else {
       const m = document.createElement("meta");
@@ -119,17 +177,17 @@ const offers: Offer[] = [
       m.content = description;
       document.head.appendChild(m);
     }
-  }, [product.title, product.short]);
+  }, [productData.title, productData.short]);
 
   const productSchema = {
     '@context': 'https://schema.org/',
     '@type': 'Product',
-    name: product.title,
-    image: product.images,
+    name: productData.title,
+    image: productData.images,
     aggregateRating: {
       '@type': 'AggregateRating',
-      ratingValue: product.rating.toFixed(1),
-      reviewCount: product.reviews.toString(),
+      ratingValue: productData.rating.toFixed(1),
+      reviewCount: productData.reviews.toString(),
     },
     offers: offers.map((o) => ({
       '@type': 'Offer',
@@ -140,6 +198,24 @@ const offers: Offer[] = [
       seller: { '@type': 'Organization', name: o.store },
     })),
   } as const;
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto px-4 py-6 lg:py-8">
+        <div className="h-4 bg-muted animate-pulse rounded w-60 mb-6" />
+        <div className="mt-6 grid gap-8 lg:grid-cols-7 xl:gap-10">
+          <div className="lg:col-span-3">
+            <div className="aspect-square bg-muted animate-pulse rounded-lg" />
+          </div>
+          <div className="lg:col-span-4 space-y-5">
+            <div className="h-8 bg-muted animate-pulse rounded" />
+            <div className="h-20 bg-muted animate-pulse rounded" />
+            <div className="h-32 bg-muted animate-pulse rounded" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-6 lg:py-8">
@@ -159,7 +235,7 @@ const offers: Offer[] = [
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>{product.title}</BreadcrumbPage>
+            <BreadcrumbPage>{productData.title}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -167,16 +243,16 @@ const offers: Offer[] = [
       {/* Main layout */}
       <div className="mt-6 grid gap-8 lg:grid-cols-7 xl:gap-10">
         <div className="lg:col-span-3">
-          <ProductGallery images={product.images} alt={product.title} />
+          <ProductGallery images={productData.images} alt={productData.title} />
         </div>
         <div className="lg:col-span-4 space-y-5">
           <div>
-            <h1 className="text-2xl font-semibold leading-tight">{product.title}</h1>
+            <h1 className="text-2xl font-semibold leading-tight">{productData.title}</h1>
             <div className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
-              <RatingStars rating={product.rating} />
-              <span>{product.rating.toFixed(1)}</span>
+              <RatingStars rating={productData.rating} />
+              <span>{productData.rating.toFixed(1)}</span>
               <span>•</span>
-              <a href="#reviews" className="underline underline-offset-4">{product.reviews.toLocaleString()} reviews</a>
+              <a href="#reviews" className="underline underline-offset-4">{productData.reviews.toLocaleString()} reviews</a>
             </div>
           </div>
 
@@ -184,26 +260,26 @@ const offers: Offer[] = [
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm text-muted-foreground">Price range</div>
-                <div className="text-2xl font-semibold">{product.priceRange}</div>
+                <div className="text-2xl font-semibold">{productData.priceRange}</div>
               </div>
-              <Badge variant="secondary">Lowest at NovaMart</Badge>
+              <Badge variant="secondary">Best value</Badge>
             </div>
           </div>
 
-          <p className="text-muted-foreground">{product.short}</p>
+          <p className="text-muted-foreground">{productData.short}</p>
 
           <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-            {product.features.map((f) => (
+            {productData.features.map((f) => (
               <li key={f}>{f}</li>
             ))}
           </ul>
           
           {/* Variants (render only if available) */}
-          {(product.variants?.colors?.length ||
-            product.variants?.ram?.length ||
-            product.variants?.storage?.length) ? (
+          {(productData.variants?.colors?.length ||
+            productData.variants?.ram?.length ||
+            productData.variants?.storage?.length) ? (
             <div className="rounded-lg border p-4 space-y-4">
-              {product.variants?.colors?.length ? (
+              {productData.variants?.colors?.length ? (
                 <div>
                   <div className="mb-2 text-sm font-medium">
                     Color{selectedColor ? `: ${selectedColor}` : ""}
@@ -213,7 +289,7 @@ const offers: Offer[] = [
                     value={selectedColor}
                     onValueChange={setSelectedColor}
                   >
-                    {(product.variants?.colors ?? []).map((c) => (
+                    {(productData.variants?.colors ?? []).map((c) => (
                       <label key={c.name} className="cursor-pointer">
                         <RadioGroupItem
                           value={c.name}
@@ -227,13 +303,13 @@ const offers: Offer[] = [
                 </div>
               ) : null}
 
-              {product.variants?.ram?.length ? (
+              {productData.variants?.ram?.length ? (
                 <div>
                   <div className="mb-2 text-sm font-medium">
                     RAM{selectedRam ? `: ${selectedRam}` : ""}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {(product.variants?.ram ?? []).map((r) => (
+                    {(productData.variants?.ram ?? []).map((r) => (
                       <Button
                         key={r}
                         type="button"
@@ -249,13 +325,13 @@ const offers: Offer[] = [
                 </div>
               ) : null}
 
-              {product.variants?.storage?.length ? (
+              {productData.variants?.storage?.length ? (
                 <div>
                   <div className="mb-2 text-sm font-medium">
                     Storage{selectedStorage ? `: ${selectedStorage}` : ""}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {(product.variants?.storage ?? []).map((s) => (
+                    {(productData.variants?.storage ?? []).map((s) => (
                       <Button
                         key={s}
                         type="button"
@@ -318,8 +394,8 @@ const offers: Offer[] = [
               <CardContent className="space-y-4 p-4 md:p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <RatingStars rating={4.8} />
-                    <span className="text-sm text-muted-foreground">Based on {product.reviews.toLocaleString()} reviews</span>
+                    <RatingStars rating={productData.rating} />
+                    <span className="text-sm text-muted-foreground">Based on {productData.reviews.toLocaleString()} reviews</span>
                   </div>
                   <Button variant="secondary">Write a review</Button>
                 </div>

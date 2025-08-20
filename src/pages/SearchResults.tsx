@@ -20,68 +20,8 @@ import imgController from "@/assets/prod-controller.jpg";
 
 
 
-const demoProducts: SearchProduct[] = [
-  {
-    id: "1",
-    title: "Wireless Noise-Cancelling Headphones Pro Max Edition",
-    images: [imgHeadphones, imgHeadphones],
-    lowestPrice: 18999,
-    lowestStore: { name: "NovaMart" },
-    priceRange: [17999, 21999],
-    rating: 4.5,
-    reviews: 1243,
-  },
-  {
-    id: "2",
-    title: "UltraLight Running Sneakers – Breathable Mesh",
-    images: [imgSneakers, imgSneakers],
-    lowestPrice: 4999,
-    lowestStore: { name: "PriceHub" },
-    priceRange: [3999, 6499],
-    rating: 4.2,
-    reviews: 982,
-  },
-  {
-    id: "3",
-    title: "Smart Fitness Watch with AMOLED Display",
-    images: [imgWatch, imgWatch],
-    lowestPrice: 6999,
-    lowestStore: { name: "QuickBuy" },
-    priceRange: [6499, 8999],
-    rating: 4.1,
-    reviews: 531,
-  },
-  {
-    id: "4",
-    title: "UltraSlim Laptop 14" + " – 16GB RAM, 512GB SSD",
-    images: [imgLaptop, imgLaptop],
-    lowestPrice: 58999,
-    lowestStore: { name: "Shoply" },
-    priceRange: [55999, 68999],
-    rating: 4.6,
-    reviews: 221,
-  },
-  {
-    id: "5",
-    title: "Programmable Coffee Maker with Thermal Carafe",
-    images: [imgCoffee, imgCoffee],
-    lowestPrice: 9999,
-    lowestStore: { name: "NovaMart" },
-    priceRange: [8999, 11999],
-    rating: 4.0,
-    reviews: 167,
-  },
-  {
-    id: "6",
-    title: "Wireless Game Controller with Haptic Feedback",
-    images: [imgController, imgController],
-    lowestPrice: 3499,
-    lowestStore: { name: "PriceHub" },
-    priceRange: [2999, 4299],
-    rating: 4.3,
-    reviews: 742,
-  },
-];
+import { useSearchProducts } from "@/hooks/useProducts";
+import { formatCurrency } from "@/utils/currency";
 
 type SortKey = "lowest" | "highest" | "popular" | "newest";
 
@@ -99,6 +39,27 @@ export default function SearchResults() {
   const q = params.get("q") ?? "";
   const [query, setQuery] = useState(q);
   const debouncedQuery = useDebounced(query);
+
+  // Fetch products from Supabase
+  const { data: searchProducts, isLoading } = useSearchProducts(debouncedQuery);
+
+  // Convert Supabase data to SearchProduct format
+  const demoProducts: SearchProduct[] = useMemo(() => {
+    if (!searchProducts) return [];
+    
+    const fallbackImages = [imgHeadphones, imgSneakers, imgWatch, imgLaptop, imgCoffee, imgController];
+    
+    return searchProducts.map((product, index) => ({
+      id: product.id,
+      title: product.model_name,
+      images: [fallbackImages[index % fallbackImages.length], fallbackImages[index % fallbackImages.length]],
+      lowestPrice: product.min_price || 0,
+      lowestStore: { name: "Multiple stores" },
+      priceRange: [product.min_price || 0, product.max_price || product.min_price || 0],
+      rating: product.rating || 4.0,
+      reviews: Math.floor(Math.random() * 1000) + 100, // Random for demo
+    }));
+  }, [searchProducts]);
 
   // Build lists from data
   const allBrands = ["Acme", "ZenX", "Nova", "Swift", "Aeron"];
@@ -197,10 +158,35 @@ export default function SearchResults() {
     }
 
     return items;
-  }, [debouncedQuery, filters, sortBy]);
+  }, [debouncedQuery, filters, sortBy, demoProducts]);
 
   const visibleItems = filtered.slice(0, visible);
   const canLoadMore = visible < filtered.length;
+
+  if (isLoading) {
+    return (
+      <div>
+        <header className="sticky top-0 z-30 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="mx-auto max-w-7xl px-4 py-3">
+            <div className="h-10 bg-muted animate-pulse rounded" />
+          </div>
+        </header>
+        <main className="mx-auto max-w-7xl px-4 py-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="border rounded-lg overflow-hidden">
+                <div className="aspect-square bg-muted animate-pulse" />
+                <div className="p-4 space-y-2">
+                  <div className="h-4 bg-muted animate-pulse rounded" />
+                  <div className="h-6 bg-muted animate-pulse rounded w-20" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div>
