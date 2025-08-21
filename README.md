@@ -1,4 +1,42 @@
-# Welcome to your Lovable project
+# ShopCompare - Price Comparison Platform
+
+A modern e-commerce price comparison platform built with React, TypeScript, and Supabase. Compare prices across multiple stores and find the best deals on your favorite products.
+
+## Features
+
+- 🔍 **Product Search**: Search across thousands of products with real-time results
+- 💰 **Price Comparison**: Compare prices from multiple retailers in one place  
+- 📱 **Responsive Design**: Fully responsive design for desktop and mobile
+- 🌙 **Dark Mode**: Toggle between light and dark themes
+- 🏷️ **Category Browse**: Browse products by categories
+- ⭐ **Product Reviews**: View ratings and reviews for products
+- 🛍️ **Product Details**: Detailed product pages with specifications and images
+
+## Supabase Integration ✅
+
+The application is fully integrated with Supabase for:
+
+- **Database**: Product catalog, categories, brands, listings, and variants
+- **Real-time API**: RESTful API for all product operations  
+- **Custom Hooks**: React hooks for data fetching with caching
+- **Type Safety**: Auto-generated TypeScript types from database schema
+
+### Database Schema
+
+- `brands` - Product brands and manufacturers
+- `categories` - Product categories with hierarchical structure  
+- `products` - Product information and specifications
+- `product_variants` - Product variations (color, size, etc.)
+- `listings` - Price listings from different retailers
+
+## Tech Stack
+
+- **Frontend**: React 18, TypeScript, Vite
+- **Backend**: Supabase (Database, Auth, API)
+- **Styling**: Tailwind CSS, shadcn/ui components
+- **State Management**: TanStack React Query  
+- **Routing**: React Router DOM
+- **UI Components**: Radix UI primitives
 
 ## Project info
 

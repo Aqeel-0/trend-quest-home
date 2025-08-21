@@ -54,7 +54,7 @@ export default function SearchResults() {
       title: product.model_name,
       images: [fallbackImages[index % fallbackImages.length], fallbackImages[index % fallbackImages.length]],
       lowestPrice: product.min_price || 0,
-      lowestStore: { name: "Multiple stores" },
+      lowestStore: { name: product.brands?.name || "Multiple stores" },
       priceRange: [product.min_price || 0, product.max_price || product.min_price || 0],
       rating: product.rating || 4.0,
       reviews: Math.floor(Math.random() * 1000) + 100, // Random for demo
@@ -62,7 +62,16 @@ export default function SearchResults() {
   }, [searchProducts]);
 
   // Build lists from data
-  const allBrands = ["Acme", "ZenX", "Nova", "Swift", "Aeron"];
+  const allBrands = useMemo(() => {
+    if (!searchProducts) return ["Acme", "ZenX", "Nova", "Swift", "Aeron"];
+    
+    const brandSet = new Set(searchProducts
+      .map(p => p.brands?.name)
+      .filter(Boolean)
+    );
+    return Array.from(brandSet);
+  }, [searchProducts]);
+  
   const allStores = ["NovaMart", "PriceHub", "QuickBuy", "Shoply"];
 
   const prices = demoProducts.flatMap((p) => p.priceRange ?? [p.lowestPrice, p.lowestPrice]);
@@ -128,12 +137,9 @@ export default function SearchResults() {
       items = items.filter((p) => filters.selectedStores.includes(p.lowestStore.name));
     }
 
-    // Brands (demo: randomly assign faux brands based on id)
+    // Brands
     if (filters.selectedBrands.length) {
-      items = items.filter((p) => {
-        const brand = allBrands[parseInt(p.id) % allBrands.length];
-        return filters.selectedBrands.includes(brand);
-      });
+      items = items.filter((p) => filters.selectedBrands.includes(p.lowestStore.name));
     }
 
     // Rating
@@ -193,7 +199,14 @@ export default function SearchResults() {
       {/* Sticky Search Bar */}
       <header className="sticky top-0 z-30 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto max-w-7xl px-4 py-3">
-          <div className="flex items-center gap-3">
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            if (query.trim()) {
+              const next = new URLSearchParams(params);
+              next.set("q", query.trim());
+              setParams(next);
+            }
+          }} className="flex items-center gap-3">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -241,7 +254,7 @@ export default function SearchResults() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          </form>
         </div>
       </header>
 

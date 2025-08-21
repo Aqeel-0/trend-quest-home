@@ -1,15 +1,17 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FormEvent, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const Hero = () => {
   const [query, setQuery] = useState("");
+  const navigate = useNavigate();
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    // For now just redirect to home with query param
-    const p = new URLSearchParams({ q: query }).toString();
-    window.location.href = `/?${p}`;
+    if (query.trim()) {
+      navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+    }
   };
 
   return (
