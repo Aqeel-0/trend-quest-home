@@ -11,6 +11,28 @@ export default function NavBar() {
             <span className="text-primary">Compare</span>
           </Link>
         </div>
+        
+        <div className="hidden md:flex items-center gap-6">
+          <Link 
+            to="/" 
+            className="text-sm text-foreground/70 hover:text-foreground transition-colors"
+          >
+            Home
+          </Link>
+          <Link 
+            to="/variants" 
+            className="text-sm text-foreground/70 hover:text-foreground transition-colors"
+          >
+            Products
+          </Link>
+          <Link 
+            to="/search" 
+            className="text-sm text-foreground/70 hover:text-foreground transition-colors"
+          >
+            Search
+          </Link>
+        </div>
+        
         <div className="flex items-center gap-2">
           <ThemeToggle />
         </div>

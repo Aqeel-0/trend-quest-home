@@ -12,6 +12,7 @@ import ProductCard, { type Product as ProductCardType } from "@/components/Produ
 import { Star } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useProduct, useProductVariants, useProducts } from "@/hooks/useProducts";
+import { useProductFromVariant } from "@/hooks/useProductVariantsWithListings";
 import { formatCurrency } from "@/utils/currency";
 
 import prodHeadphones from "@/assets/prod-headphones.jpg";
@@ -35,11 +36,21 @@ function RatingStars({ rating }: { rating: number }) {
 export default function Product() {
   const { id } = useParams();
   
-  const { data: product, isLoading: productLoading } = useProduct(id ?? "");
-  const { data: variants, isLoading: variantsLoading } = useProductVariants(id ?? "");
+  // Try to get product directly first (for product IDs)
+  const { data: product, isLoading: productLoading, error: productError } = useProduct(id ?? "");
+  
+  // If product not found, try to get product from variant (for variant IDs)
+  const { data: variantData, isLoading: variantLoading } = useProductFromVariant(id ?? "");
+  
+  // Determine which data to use
+  const productData = product || (variantData?.products as any);
+  const actualProductId = productData?.id || variantData?.product_id;
+  
+  // Get variants for the actual product
+  const { data: variants, isLoading: variantsLoading } = useProductVariants(actualProductId ?? "");
   const { data: relatedProducts } = useProducts(4);
 
-  const isLoading = productLoading || variantsLoading;
+  const isLoading = productLoading || variantLoading || variantsLoading;
 
   type Variants = {
     colors?: { name: string; hex: string }[];
@@ -59,10 +70,10 @@ export default function Product() {
     variants?: Variants;
   };
 
-  // Mock product; in real app, fetch by id
-  const productData = useMemo<ProductData>(
+  // Process product data from either direct product or variant
+  const processedProductData = useMemo<ProductData>(
     () => {
-      if (!product) {
+      if (!productData) {
         return {
           id: id ?? "1",
           title: "Loading...",
@@ -76,22 +87,27 @@ export default function Product() {
         };
       }
 
+      // Handle images - try to get from variant data first if available
+      const images = variantData?.images && Array.isArray(variantData.images) && variantData.images.length > 0
+        ? variantData.images.map((img: any) => typeof img === 'string' ? img : img.url).filter(Boolean)
+        : [prodLaptop, prodWatch, prodController, prodHeadphones];
+
       return {
-        id: product.id,
-        title: product.model_name,
-        images: [prodLaptop, prodWatch, prodController, prodHeadphones], // Use fallback images
-        rating: product.rating || 4.5,
+        id: productData.id,
+        title: productData.model_name,
+        images,
+        rating: productData.rating || 4.5,
         reviews: Math.floor(Math.random() * 2000) + 100, // Random for demo
-        short: product.description || "Product description not available.",
-        features: product.specifications?.features || [
+        short: productData.description || "Product description not available.",
+        features: productData.specifications?.features || [
           "High-quality construction",
-          "Advanced technology",
+          "Advanced technology", 
           "Reliable performance",
           "Excellent value",
           "Customer satisfaction guaranteed",
         ],
-        priceRange: product.min_price && product.max_price 
-          ? `${formatCurrency(product.min_price)} — ${formatCurrency(product.max_price)}`
+        priceRange: productData.min_price && productData.max_price 
+          ? `${formatCurrency(productData.min_price)} — ${formatCurrency(productData.max_price)}`
           : "Price not available",
         variants: {
           colors: [
@@ -105,7 +121,7 @@ export default function Product() {
         },
       };
     },
-    [id, product]
+    [id, productData, variantData]
   );
 
 const [selectedColor, setSelectedColor] = useState<string | undefined>(undefined);
@@ -113,18 +129,18 @@ const [selectedRam, setSelectedRam] = useState<string | undefined>(undefined);
 const [selectedStorage, setSelectedStorage] = useState<string | undefined>(undefined);
 
 useEffect(() => {
-  setSelectedColor((prev) => prev ?? productData.variants?.colors?.[0]?.name);
-  setSelectedRam((prev) => prev ?? productData.variants?.ram?.[0]);
-  setSelectedStorage((prev) => prev ?? productData.variants?.storage?.[0]);
-}, [productData]);
+  setSelectedColor((prev) => prev ?? processedProductData.variants?.colors?.[0]?.name);
+  setSelectedRam((prev) => prev ?? processedProductData.variants?.ram?.[0]);
+  setSelectedStorage((prev) => prev ?? processedProductData.variants?.storage?.[0]);
+}, [processedProductData]);
 
 // Convert variants and listings to offers
 const offers: Offer[] = useMemo(() => {
   if (!variants || variants.length === 0) {
     return [
-      { store: "NovaMart", price: productData.priceRange, delivery: "Free 2–4 days", url: "#", inStock: true },
-      { store: "QuickBuy", price: productData.priceRange, delivery: "$5 • Next day", url: "#", inStock: true },
-      { store: "Shoply", price: productData.priceRange, delivery: "Free • 5–7 days", url: "#", inStock: true },
+      { store: "NovaMart", price: processedProductData.priceRange, delivery: "Free 2–4 days", url: "#", inStock: true },
+      { store: "QuickBuy", price: processedProductData.priceRange, delivery: "$5 • Next day", url: "#", inStock: true },
+      { store: "Shoply", price: processedProductData.priceRange, delivery: "Free • 5–7 days", url: "#", inStock: true },
     ];
   }
 
@@ -142,7 +158,7 @@ const offers: Offer[] = useMemo(() => {
   });
 
   return allOffers.slice(0, 4); // Limit to 4 offers
-}, [variants, productData.priceRange]);
+}, [variants, processedProductData.priceRange]);
 
   const related: ProductCardType[] = useMemo(() => {
     if (!relatedProducts) {
@@ -165,11 +181,11 @@ const offers: Offer[] = useMemo(() => {
   }, [relatedProducts]);
 
   useEffect(() => {
-    const title = `${productData.title} | Best Prices & Comparison`;
+    const title = `${processedProductData.title} | Best Prices & Comparison`;
     document.title = title;
 
     const meta = document.querySelector('meta[name="description"]');
-    const description = `${productData.title} – compare prices across stores. ${productData.short}`.slice(0, 155);
+    const description = `${processedProductData.title} – compare prices across stores. ${processedProductData.short}`.slice(0, 155);
     if (meta) meta.setAttribute("content", description);
     else {
       const m = document.createElement("meta");
@@ -177,17 +193,17 @@ const offers: Offer[] = useMemo(() => {
       m.content = description;
       document.head.appendChild(m);
     }
-  }, [productData.title, productData.short]);
+  }, [processedProductData.title, processedProductData.short]);
 
   const productSchema = {
     '@context': 'https://schema.org/',
     '@type': 'Product',
-    name: productData.title,
-    image: productData.images,
+    name: processedProductData.title,
+    image: processedProductData.images,
     aggregateRating: {
       '@type': 'AggregateRating',
-      ratingValue: productData.rating.toFixed(1),
-      reviewCount: productData.reviews.toString(),
+      ratingValue: processedProductData.rating.toFixed(1),
+      reviewCount: processedProductData.reviews.toString(),
     },
     offers: offers.map((o) => ({
       '@type': 'Offer',
@@ -243,16 +259,16 @@ const offers: Offer[] = useMemo(() => {
       {/* Main layout */}
       <div className="mt-6 grid gap-8 lg:grid-cols-7 xl:gap-10">
         <div className="lg:col-span-3">
-          <ProductGallery images={productData.images} alt={productData.title} />
+          <ProductGallery images={processedProductData.images} alt={processedProductData.title} />
         </div>
         <div className="lg:col-span-4 space-y-5">
           <div>
-            <h1 className="text-2xl font-semibold leading-tight">{productData.title}</h1>
+            <h1 className="text-2xl font-semibold leading-tight">{processedProductData.title}</h1>
             <div className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
-              <RatingStars rating={productData.rating} />
-              <span>{productData.rating.toFixed(1)}</span>
+              <RatingStars rating={processedProductData.rating} />
+              <span>{processedProductData.rating.toFixed(1)}</span>
               <span>•</span>
-              <a href="#reviews" className="underline underline-offset-4">{productData.reviews.toLocaleString()} reviews</a>
+              <a href="#reviews" className="underline underline-offset-4">{processedProductData.reviews.toLocaleString()} reviews</a>
             </div>
           </div>
 
@@ -260,26 +276,26 @@ const offers: Offer[] = useMemo(() => {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm text-muted-foreground">Price range</div>
-                <div className="text-2xl font-semibold">{productData.priceRange}</div>
+                <div className="text-2xl font-semibold">{processedProductData.priceRange}</div>
               </div>
               <Badge variant="secondary">Best value</Badge>
             </div>
           </div>
 
-          <p className="text-muted-foreground">{productData.short}</p>
+          <p className="text-muted-foreground">{processedProductData.short}</p>
 
           <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-            {productData.features.map((f) => (
+            {processedProductData.features.map((f) => (
               <li key={f}>{f}</li>
             ))}
           </ul>
           
           {/* Variants (render only if available) */}
-          {(productData.variants?.colors?.length ||
-            productData.variants?.ram?.length ||
-            productData.variants?.storage?.length) ? (
+          {(processedProductData.variants?.colors?.length ||
+            processedProductData.variants?.ram?.length ||
+            processedProductData.variants?.storage?.length) ? (
             <div className="rounded-lg border p-4 space-y-4">
-              {productData.variants?.colors?.length ? (
+              {processedProductData.variants?.colors?.length ? (
                 <div>
                   <div className="mb-2 text-sm font-medium">
                     Color{selectedColor ? `: ${selectedColor}` : ""}
@@ -289,7 +305,7 @@ const offers: Offer[] = useMemo(() => {
                     value={selectedColor}
                     onValueChange={setSelectedColor}
                   >
-                    {(productData.variants?.colors ?? []).map((c) => (
+                    {(processedProductData.variants?.colors ?? []).map((c) => (
                       <label key={c.name} className="cursor-pointer">
                         <RadioGroupItem
                           value={c.name}
@@ -303,13 +319,13 @@ const offers: Offer[] = useMemo(() => {
                 </div>
               ) : null}
 
-              {productData.variants?.ram?.length ? (
+              {processedProductData.variants?.ram?.length ? (
                 <div>
                   <div className="mb-2 text-sm font-medium">
                     RAM{selectedRam ? `: ${selectedRam}` : ""}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {(productData.variants?.ram ?? []).map((r) => (
+                    {(processedProductData.variants?.ram ?? []).map((r) => (
                       <Button
                         key={r}
                         type="button"
@@ -325,13 +341,13 @@ const offers: Offer[] = useMemo(() => {
                 </div>
               ) : null}
 
-              {productData.variants?.storage?.length ? (
+              {processedProductData.variants?.storage?.length ? (
                 <div>
                   <div className="mb-2 text-sm font-medium">
                     Storage{selectedStorage ? `: ${selectedStorage}` : ""}
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {(productData.variants?.storage ?? []).map((s) => (
+                    {(processedProductData.variants?.storage ?? []).map((s) => (
                       <Button
                         key={s}
                         type="button"
@@ -393,10 +409,10 @@ const offers: Offer[] = useMemo(() => {
             <Card>
               <CardContent className="space-y-4 p-4 md:p-6">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <RatingStars rating={productData.rating} />
-                    <span className="text-sm text-muted-foreground">Based on {productData.reviews.toLocaleString()} reviews</span>
-                  </div>
+                                  <div className="flex items-center gap-2">
+                  <RatingStars rating={processedProductData.rating} />
+                  <span className="text-sm text-muted-foreground">Based on {processedProductData.reviews.toLocaleString()} reviews</span>
+                </div>
                   <Button variant="secondary">Write a review</Button>
                 </div>
                 <div className="space-y-3 text-sm text-muted-foreground">

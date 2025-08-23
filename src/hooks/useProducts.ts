@@ -13,9 +13,8 @@ export interface ProductWithBrand {
   rating: number | null;
   is_featured: boolean;
   launch_date: string | null;
-  is_active: boolean;
   variant_count: number;
-  status: string;
+  status: "active" | "discontinued" | "coming_soon";
   specifications: any;
   category_id: string | null;
   brand_id: string;
@@ -69,7 +68,7 @@ export const useProducts = (limit?: number) => {
           brands (name, slug, logo_url),
           categories (name, slug)
         `)
-        .eq("is_active", true)
+        .eq("status", "active")
         .order("created_at", { ascending: false });
 
       if (limit) {
@@ -95,7 +94,7 @@ export const useFeaturedProducts = (limit = 6) => {
           brands (name, slug, logo_url),
           categories (name, slug)
         `)
-        .eq("is_active", true)
+        .eq("status", "active")
         .eq("is_featured", true)
         .order("created_at", { ascending: false })
         .limit(limit);
@@ -117,7 +116,7 @@ export const useProductsByCategory = (categorySlug: string) => {
           brands (name, slug, logo_url),
           categories!inner (name, slug)
         `)
-        .eq("is_active", true)
+        .eq("status", "active")
         .eq("categories.slug", categorySlug)
         .order("created_at", { ascending: false });
       
@@ -139,7 +138,7 @@ export const useProduct = (id: string) => {
           categories (name, slug)
         `)
         .eq("id", id)
-        .eq("is_active", true)
+        .eq("status", "active")
         .single();
       
       if (error) throw error;
@@ -184,10 +183,10 @@ export const useSearchProducts = (query?: string) => {
           brands (name, slug, logo_url),
           categories (name, slug)
         `)
-        .eq("is_active", true);
+        .eq("status", "active");
 
       if (query && query.length > 0) {
-        supabaseQuery = supabaseQuery.or(`model_name.ilike.%${query}%,description.ilike.%${query}%,brands.name.ilike.%${query}%`);
+        supabaseQuery = supabaseQuery.or(`model_name.ilike.%${query}%,model_number.ilike.%${query}%,description.ilike.%${query}%`);
       }
 
       const { data, error } = await supabaseQuery
