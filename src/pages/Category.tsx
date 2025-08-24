@@ -261,21 +261,24 @@ const Category: React.FC = () => {
   
   const {
     data,
+    allVariants: allStoredVariants,
+    displayedVariants,
+    displayedCount,
+    totalCount: loadedCount,
     isLoading,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    resetToFirst20,
   } = useProductVariantsByCategory(slug ?? "", sort);
 
-  // Get total count from database
+  // Get total count from database (for display purposes)
   const { data: totalCount, isLoading: isLoadingCount } = useProductVariantsTotalCount(slug ?? "");
 
-  // Flatten all pages and sort
+  // Use all stored variants for filtering (not just displayed ones)
   const allVariants = useMemo(() => {
-    if (!data?.pages) return [];
-    const flattened = data.pages.flat();
-    return sortProductVariants(flattened, sort);
-  }, [data?.pages, sort]);
+    return allStoredVariants || [];
+  }, [allStoredVariants]);
 
   // Convert variants to CategoryProduct format with enhanced data
   const categoryProducts: CategoryProduct[] = useMemo(() => {
@@ -439,8 +442,6 @@ const Category: React.FC = () => {
       list = list.filter((p) => p.storage === selectedStorage);
     }
     
-
-    
     // Network filter
     if (selectedNetwork.length > 0) {
       list = list.filter((p) => p.network && selectedNetwork.includes(p.network));
@@ -474,10 +475,27 @@ const Category: React.FC = () => {
     return list;
   }, [brands, inStockOnly, minRating, price, selectedRam, selectedStorage, selectedNetwork, sort, categoryProducts]);
 
+  // Get visible products (first N filtered results for display)
+  const [visibleCount, setVisibleCount] = useState(20);
+  const visibleProducts = filtered.slice(0, visibleCount);
+
+  // When filters change, reset visible count and go back to first 20
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [brands, inStockOnly, minRating, price, selectedRam, selectedStorage, selectedNetwork, sort]);
+
   const onQuickView = (p: CategoryProduct) => {
     const storeName = p.topStores[0]?.storeName || 'Unknown store';
     toast({ title: p.title, description: `${currency(p.lowestPrice)} at ${storeName}` });
   };
+
+  // Load more function for client-side pagination
+  const loadMoreFiltered = () => {
+    const newCount = Math.min(visibleCount + 20, filtered.length);
+    setVisibleCount(newCount);
+  };
+
+  const hasMoreFiltered = visibleCount < filtered.length;
 
   // Enhanced Sidebar filters
   const Filters = (
@@ -586,8 +604,6 @@ const Category: React.FC = () => {
           </AccordionItem>
         )}
 
-
-
         {/* Brand Filter */}
         {filterOptions.brands.length > 0 && (
           <AccordionItem value="brands">
@@ -653,9 +669,10 @@ const Category: React.FC = () => {
                 setBrands([]);
                 setMinRating(0);
                 setInStockOnly(false);
-                                 setSelectedRam("");
-                 setSelectedStorage("");
-                 setSelectedNetwork([]);
+                setSelectedRam("");
+                setSelectedStorage("");
+                setSelectedNetwork([]);
+                setVisibleCount(20); // Reset visible count when clearing filters
               }}
               className="w-full"
             >
@@ -666,8 +683,6 @@ const Category: React.FC = () => {
       </Accordion>
     </div>
   );
-
-  const visibleProducts = filtered;
 
   if (isLoading) {
     return (
@@ -725,8 +740,8 @@ const Category: React.FC = () => {
           <h1 className="mt-4 text-2xl md:text-3xl font-semibold">{categoryName}</h1>
           <p className="text-muted-foreground mt-2">
             {isLoading || isLoadingCount
-              ? "Loading products..." 
-              : `Showing ${visibleProducts.length} of ${totalCount || 0} products`
+              ? "Loading products with multiple listings..." 
+              : `Showing ${visibleProducts.length} of ${filtered.length} filtered products (${loadedCount || 0} total with >1 listings)`
             }
           </p>
         </div>
@@ -786,38 +801,54 @@ const Category: React.FC = () => {
               ))}
             </div>
 
-            {/* Single Load More Button */}
+            {/* Client-side Load More Button */}
             <div className="mt-8">
-              {hasNextPage && (
+              {hasMoreFiltered && (
                 <div className="flex justify-center">
-                                     <Button 
-                     variant="outline" 
-                     onClick={() => fetchNextPage()}
-                     disabled={isFetchingNextPage}
-                     className="px-8 py-3 text-base font-medium bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
-                   >
-                    {isFetchingNextPage ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Loading...
-                      </>
-                    ) : (
-                      "Load More..."
-                    )}
+                  <Button 
+                    variant="outline" 
+                    onClick={loadMoreFiltered}
+                    disabled={false}
+                    className="px-8 py-3 text-base font-medium bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                  >
+                    Load More... ({visibleProducts.length} of {filtered.length} products)
                   </Button>
                 </div>
               )}
               
               {/* End of results message */}
-              {!hasNextPage && filtered.length > 0 && (
+              {!hasMoreFiltered && filtered.length > 0 && (
                 <div className="text-center text-muted-foreground space-y-2">
-                  <p className="text-sm">✨ You've seen all available products in this category</p>
+                  <p className="text-sm">✨ You've seen all {filtered.length} products matching your filters</p>
                   <Button 
                     variant="ghost" 
                     size="sm" 
                     onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
                   >
                     Back to Top ↑
+                  </Button>
+                </div>
+              )}
+
+              {/* No results message */}
+              {filtered.length === 0 && !isLoading && (
+                <div className="text-center text-muted-foreground space-y-2">
+                  <p className="text-sm">No products match your current filters</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      setPrice([0, 200000]);
+                      setBrands([]);
+                      setMinRating(0);
+                      setInStockOnly(false);
+                      setSelectedRam("");
+                      setSelectedStorage("");
+                      setSelectedNetwork([]);
+                      setVisibleCount(20);
+                    }}
+                  >
+                    Clear All Filters
                   </Button>
                 </div>
               )}

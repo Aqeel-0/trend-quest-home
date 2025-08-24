@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery, QueryFunctionContext } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect } from "react";
 
 export interface ListingData {
   id: string;
@@ -76,6 +77,262 @@ interface UseProductVariantsWithListingsProps {
   categorySlug?: string;
 }
 
+// NEW HOOK: Fetch ALL variants with >1 listings and store locally
+export const useProductVariantsWithMultipleListings = ({ 
+  sortBy = "newest", 
+  enabled = true,
+  categorySlug 
+}: UseProductVariantsWithListingsProps = {}) => {
+  
+  const [allVariants, setAllVariants] = useState<ProductVariantWithListings[]>([]);
+  const [displayedCount, setDisplayedCount] = useState(20);
+  const [isLocalLoading, setIsLocalLoading] = useState(false);
+  
+  // Fetch ALL variants with database-level filtering for >1 listings
+  const fetchAllVariantsWithMultipleListings = async (): Promise<ProductVariantWithListings[]> => {
+    console.log('🔍 Fetching ALL variants with >1 listings from database...');
+    
+    // Step 1: Get variants grouped by variant ID with listing counts
+    let countQuery = supabase
+      .from('listings')
+      .select(`
+        variant_id,
+        product_variants!inner (
+          id,
+          name,
+          product_id,
+          sku,
+          attributes,
+          images,
+          created_at,
+          updated_at,
+          is_active,
+          products!inner (
+            id,
+            model_name,
+            brand_id,
+            category_id,
+            is_active,
+            brands!inner (
+              id,
+              name,
+              slug,
+              logo_url,
+              is_active
+            ),
+            categories!inner (
+              id,
+              name,
+              slug,
+              is_active
+            )
+          )
+        )
+      `)
+      .eq('is_active', true)
+      .eq('product_variants.is_active', true)
+      .eq('product_variants.products.is_active', true)
+      .eq('product_variants.products.brands.is_active', true)
+      .eq('product_variants.products.categories.is_active', true);
+
+    // Add category filter if provided
+    if (categorySlug) {
+      countQuery = countQuery.eq('product_variants.products.categories.slug', categorySlug);
+    }
+
+    const { data: listingCounts, error: countError } = await countQuery;
+
+    if (countError) {
+      console.error('Error fetching listing counts:', countError);
+      throw countError;
+    }
+
+    if (!listingCounts || listingCounts.length === 0) {
+      console.log('⚠️ No listings found');
+      return [];
+    }
+
+    // Group by variant and count listings
+    const variantListingCounts = new Map<string, { count: number; variant: any }>();
+    listingCounts.forEach(item => {
+      const variantId = item.variant_id;
+      if (!variantListingCounts.has(variantId)) {
+        variantListingCounts.set(variantId, {
+          count: 0,
+          variant: item.product_variants
+        });
+      }
+      variantListingCounts.get(variantId)!.count++;
+    });
+
+    // Filter variants with MORE than 1 listing (>1)
+    const variantsWithMultipleListings = Array.from(variantListingCounts.entries())
+      .filter(([_, data]) => data.count > 1)
+      .map(([variantId, data]) => ({
+        variantId,
+        listingCount: data.count,
+        variant: data.variant
+      }));
+
+    console.log(`📊 Found ${variantsWithMultipleListings.length} variants with >1 listings`);
+
+    if (variantsWithMultipleListings.length === 0) {
+      return [];
+    }
+
+    // Step 2: Get all listings for these variants
+    const variantIds = variantsWithMultipleListings.map(v => v.variantId);
+    
+    const { data: allListings, error: listingsError } = await supabase
+      .from('listings')
+      .select(`
+        id,
+        variant_id,
+        price,
+        original_price,
+        discount_percentage,
+        store_name,
+        rating,
+        review_count,
+        stock_status,
+        currency,
+        url,
+        affiliate_url,
+        seller_name,
+        created_at
+      `)
+      .in('variant_id', variantIds)
+      .eq('is_active', true);
+
+    if (listingsError) {
+      console.error('Error fetching listings:', listingsError);
+      throw listingsError;
+    }
+
+    // Step 3: Group listings by variant and create final structure
+    const listingsByVariant = new Map<string, ListingData[]>();
+    allListings?.forEach(listing => {
+      if (!listingsByVariant.has(listing.variant_id)) {
+        listingsByVariant.set(listing.variant_id, []);
+      }
+      listingsByVariant.get(listing.variant_id)!.push(listing);
+    });
+
+    // Step 4: Create final ProductVariantWithListings array
+    const processedVariants: ProductVariantWithListings[] = variantsWithMultipleListings.map(({ variantId, variant }) => {
+      const listings = listingsByVariant.get(variantId) || [];
+      
+      // Sort listings by price for min price calculation
+      const sortedByPrice = [...listings].sort((a, b) => a.price - b.price);
+      const minPrice = sortedByPrice[0]?.price || 0;
+      const secondMinPrice = sortedByPrice[1]?.price || null;
+      
+      // Calculate average rating and total reviews
+      const ratingsWithValues = listings.filter(l => l.rating && l.rating > 0);
+      const avgRating = ratingsWithValues.length > 0
+        ? ratingsWithValues.reduce((sum, l) => sum + (l.rating || 0), 0) / ratingsWithValues.length
+        : null;
+      const totalReviews = listings.reduce((sum, l) => sum + l.review_count, 0);
+      
+      // Extract primary image - handle different image formats
+      let primaryImage: string | null = null;
+      if (variant.images) {
+        if (typeof variant.images === 'string') {
+          primaryImage = variant.images;
+        } else if (Array.isArray(variant.images) && variant.images.length > 0) {
+          const firstImage = variant.images[0];
+          if (typeof firstImage === 'string') {
+            primaryImage = firstImage;
+          } else if (typeof firstImage === 'object' && firstImage !== null && 'url' in firstImage) {
+            primaryImage = firstImage.url as string;
+          }
+        } else if (typeof variant.images === 'object' && variant.images !== null && 'primary' in variant.images) {
+          primaryImage = variant.images.primary as string;
+        } else if (typeof variant.images === 'object' && variant.images !== null && 'url' in variant.images) {
+          primaryImage = variant.images.url as string;
+        }
+      }
+
+      return {
+        id: variant.id,
+        name: variant.name,
+        product_id: variant.product_id,
+        sku: variant.sku,
+        attributes: variant.attributes,
+        images: variant.images,
+        created_at: variant.created_at,
+        updated_at: variant.updated_at,
+        products: variant.products,
+        listings,
+        minPrice,
+        secondMinPrice,
+        storeCount: listings.length,
+        primaryImage,
+        avgRating,
+        totalReviews,
+      };
+    });
+
+    console.log(`✅ Processed ${processedVariants.length} variants with multiple listings`);
+    return processedVariants;
+  };
+
+  // Main query to fetch all data
+  const query = useQuery({
+    queryKey: ["variants-multiple-listings", categorySlug],
+    queryFn: fetchAllVariantsWithMultipleListings,
+    enabled,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  // Update local state when query data changes
+  useEffect(() => {
+    if (query.data) {
+      console.log(`📦 Storing ${query.data.length} variants locally`);
+      const sortedData = sortProductVariants(query.data, sortBy);
+      setAllVariants(sortedData);
+      setDisplayedCount(20); // Reset to show first 20
+    }
+  }, [query.data, sortBy]);
+
+  // Get currently displayed variants (first N)
+  const displayedVariants = allVariants.slice(0, displayedCount);
+  
+  // Load more function
+  const loadMore = () => {
+    setIsLocalLoading(true);
+    // Simulate loading delay for better UX
+    setTimeout(() => {
+      const newCount = Math.min(displayedCount + 20, allVariants.length);
+      console.log(`📄 Loading more: showing ${newCount} of ${allVariants.length} variants`);
+      setDisplayedCount(newCount);
+      setIsLocalLoading(false);
+    }, 500);
+  };
+
+  const hasNextPage = displayedCount < allVariants.length;
+
+  return {
+    data: {
+      pages: [displayedVariants], // Mimic infinite query structure for compatibility
+      pageParams: [0],
+    },
+    allVariants, // All loaded variants for filtering
+    displayedVariants, // Currently shown variants
+    displayedCount,
+    totalCount: allVariants.length,
+    isLoading: query.isLoading,
+    error: query.error,
+    fetchNextPage: loadMore,
+    hasNextPage,
+    isFetchingNextPage: isLocalLoading,
+    // Additional utilities
+    resetToFirst20: () => setDisplayedCount(20),
+  };
+};
+
+// Legacy hook for backward compatibility (but not used in new implementation)
 export const useProductVariantsWithListings = ({ 
   sortBy = "newest", 
   enabled = true,
@@ -278,33 +535,69 @@ export const sortProductVariants = (
   }
 };
 
-// Simplified count query without complex joins
+// Count query for variants with >1 listings
 export const useProductVariantsTotalCount = (categorySlug: string) => {
   return useQuery({
-    queryKey: ["product-variants-total-count", categorySlug],
+    queryKey: ["product-variants-total-count-multiple-listings", categorySlug],
     queryFn: async () => {
-      // Get count by using the same structure as main query but just counting
-      const { count, error } = await supabase
-        .from('product_variants')
-        .select('products!inner(categories!inner(slug))', { count: 'exact', head: true })
+      // Get count by counting variants that have >1 listings
+      let countQuery = supabase
+        .from('listings')
+        .select(`
+          variant_id,
+          product_variants!inner (
+            id,
+            is_active,
+            products!inner (
+              is_active,
+              categories!inner (
+                slug,
+                is_active
+              )
+            )
+          )
+        `)
         .eq('is_active', true)
-        .eq('products.categories.slug', categorySlug);
+        .eq('product_variants.is_active', true)
+        .eq('product_variants.products.is_active', true)
+        .eq('product_variants.products.categories.is_active', true);
+
+      if (categorySlug) {
+        countQuery = countQuery.eq('product_variants.products.categories.slug', categorySlug);
+      }
+
+      const { data: listingCounts, error } = await countQuery;
 
       if (error) {
         console.error('Error fetching total count:', error);
         throw error;
       }
 
-      return count || 0;
+      if (!listingCounts) {
+        return 0;
+      }
+
+      // Group by variant and count listings
+      const variantListingCounts = new Map<string, number>();
+      listingCounts.forEach(item => {
+        const variantId = item.variant_id;
+        variantListingCounts.set(variantId, (variantListingCounts.get(variantId) || 0) + 1);
+      });
+
+      // Count variants with MORE than 1 listing (>1)
+      const variantsWithMultipleListings = Array.from(variantListingCounts.values())
+        .filter(count => count > 1);
+
+      return variantsWithMultipleListings.length;
     },
     enabled: !!categorySlug,
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
 };
 
-// Hook specifically for category page
+// Hook specifically for category page - now uses the new implementation
 export const useProductVariantsByCategory = (categorySlug: string, sortBy: string = "newest") => {
-  return useProductVariantsWithListings({
+  return useProductVariantsWithMultipleListings({
     sortBy,
     categorySlug,
     enabled: !!categorySlug,
