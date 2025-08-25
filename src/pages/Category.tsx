@@ -84,27 +84,37 @@ const storeColor: Record<string, string> = {
 const initials = (name: string) => name.split(" ").map((n) => n[0]).join("").slice(0,2).toUpperCase();
 
 // Removed ALL_BRANDS constant - now dynamically extracted from data
-
-import { useProductVariantsByCategory, useProductVariantsTotalCount, sortProductVariants, ProductVariantWithListings } from "@/hooks/useProductVariantsWithListings";
-import { formatCurrency } from "@/utils/currency";
+import { useProductVariantsByCategory, useSmartphoneVariantsTotalCount as useProductVariantsTotalCount, sortProductVariants, ProductVariantWithListings } from "@/hooks/useProductVariantsWithListings";
 
 // Helpers
-const currency = (n: number) => new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(n);
 const toTitle = (s: string) => s.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+const formatIndianRupee = (amount: number) => {
+  try {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  } catch {
+    return `₹${amount.toLocaleString('en-IN')}`;
+  }
+};
 
 // Enhanced Product Card with E-commerce Best Practices
 const CategoryProductCard: React.FC<{ product: CategoryProduct; onQuickView: (p: CategoryProduct) => void; }> = ({ product, onQuickView }) => {
   
-  const formatPrice = (amount: number, currencyCode: string) => {
+  const formatPrice = (amount: number) => {
     try {
-      return new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
-        currency: currencyCode,
+      // Format as Indian Rupee with proper comma separation
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0 
+        maximumFractionDigits: 0
       }).format(amount);
     } catch {
-      return `${currencyCode} ${amount.toLocaleString()}`;
+      return `₹${amount.toLocaleString('en-IN')}`;
     }
   };
   
@@ -154,18 +164,18 @@ const CategoryProductCard: React.FC<{ product: CategoryProduct; onQuickView: (p:
             </span>
             <div className="flex items-center gap-1">
               {Array.from({ length: 5 }, (_, i) => (
-                <Star 
-                  key={i} 
+                <Star
+                  key={i}
                   className={cn(
-                    "h-3 w-3", 
-                    i < Math.floor(product.rating) 
-                      ? "fill-yellow-400 text-yellow-400" 
+                    "h-3 w-3",
+                    i < Math.floor(product.rating)
+                      ? "fill-yellow-400 text-yellow-400"
                       : "text-muted-foreground/40"
-                  )} 
+                  )}
                 />
               ))}
               <span className="ml-1 text-xs text-muted-foreground">
-                ({product.rating})
+                ({product.rating.toFixed(1)})
               </span>
             </div>
           </div>
@@ -196,23 +206,18 @@ const CategoryProductCard: React.FC<{ product: CategoryProduct; onQuickView: (p:
             )}
           </div>
           
-          {/* Price Section */}
+          {/* Price Section - Show only lowest price prominently */}
           <div className="space-y-1 mt-auto">
-            {/* Store Prices */}
-            {product.topStores.length > 0 && (
-              <div className="space-y-1">
-                {product.topStores.map((store, index) => (
-                  <div key={index} className="text-sm text-foreground">
-                    {store.storeName} - {formatPrice(store.price, store.currency)}
-                  </div>
-                ))}
-                {product.otherStoresCount > 0 && (
-                  <div className="text-xs text-muted-foreground/70">
-                    +{product.otherStoresCount} in other stores
-                  </div>
-                )}
+            {/* Lowest Price Display */}
+            <div className="flex flex-col">
+              <div className="text-lg font-bold text-foreground">
+                {formatPrice(product.lowestPrice)}
               </div>
-            )}
+              {/* Store Availability */}
+              <div className="text-sm text-muted-foreground mt-1">
+                {`Available in ${product.shopsCount} store${product.shopsCount > 1 ? 's' : ''}`}
+              </div>
+            </div>
           </div>
           
           {/* Store & Availability */}
@@ -271,10 +276,7 @@ const Category: React.FC = () => {
     isFetchingNextPage,
     resetToFirst20,
   } = useProductVariantsByCategory(slug ?? "", sort);
-
-  // Get total count from database (for display purposes)
-  const { data: totalCount, isLoading: isLoadingCount } = useProductVariantsTotalCount(slug ?? "");
-
+  const { data: totalVariantsCount } = useProductVariantsTotalCount(slug);
   // Use all stored variants for filtering (not just displayed ones)
   const allVariants = useMemo(() => {
     return allStoredVariants || [];
@@ -317,7 +319,7 @@ const Category: React.FC = () => {
         id: variant.id,
         title: variant.name,
         image: variant.primaryImage || fallbackImages[index % fallbackImages.length],
-        brand: variant.products?.brands?.name || 'Various',
+        brand: variant.brand?.name || 'Various',
         priceMin: variant.minPrice,
         priceMax: variant.secondMinPrice || variant.minPrice,
         lowestPrice: variant.minPrice,
@@ -486,7 +488,7 @@ const Category: React.FC = () => {
 
   const onQuickView = (p: CategoryProduct) => {
     const storeName = p.topStores[0]?.storeName || 'Unknown store';
-    toast({ title: p.title, description: `${currency(p.lowestPrice)} at ${storeName}` });
+    toast({ title: p.title, description: `${formatIndianRupee(p.lowestPrice)} at ${storeName}` });
   };
 
   // Load more function for client-side pagination
@@ -515,67 +517,93 @@ const Category: React.FC = () => {
                 className="mt-2" 
               />
               <div className="mt-2 flex justify-between text-sm text-muted-foreground">
-                <span>{currency(price[0])}</span>
-                <span>{currency(price[1])}</span>
+                <span>{formatIndianRupee(price[0])}</span>
+                <span>{formatIndianRupee(price[1])}</span>
               </div>
             </div>
           </AccordionContent>
         </AccordionItem>
 
-        {/* RAM Filter - Single Select */}
+        {/* RAM Filter - Multiple Select with Checkboxes */}
         {filterOptions.rams.length > 0 && (
           <AccordionItem value="ram">
             <AccordionTrigger>RAM</AccordionTrigger>
             <AccordionContent>
-              <div className="space-y-2 pt-2">
-                <Button
-                  variant={selectedRam === "" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedRam("")}
-                  className="w-full justify-start text-sm"
-                >
-                  Any RAM
-                </Button>
+              <div className="grid grid-cols-2 gap-3 pt-2">
                 {filterOptions.rams.map((ram) => (
-                  <Button
-                    key={ram}
-                    variant={selectedRam === ram ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedRam(ram)}
-                    className="w-full justify-start text-sm"
-                  >
-                    {ram}
-                  </Button>
+                  <div key={ram} className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "relative flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border-2 transition-all duration-200",
+                        selectedRam === ram
+                          ? "border-primary bg-primary"
+                          : "border-muted-foreground hover:border-foreground"
+                      )}
+                      onClick={() => {
+                        setSelectedRam(selectedRam === ram ? "" : ram);
+                      }}
+                    >
+                      {selectedRam === ram && (
+                        <div className="h-2 w-2 rounded-full bg-white"></div>
+                      )}
+                    </div>
+                    <Label
+                      className={cn(
+                        "cursor-pointer text-sm font-medium transition-colors duration-200",
+                        selectedRam === ram
+                          ? "text-foreground font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => {
+                        setSelectedRam(selectedRam === ram ? "" : ram);
+                      }}
+                    >
+                      {ram}
+                    </Label>
+                  </div>
                 ))}
               </div>
             </AccordionContent>
           </AccordionItem>
         )}
 
-        {/* Storage Filter - Single Select */}
+        {/* Storage Filter - Multiple Select with Checkboxes */}
         {filterOptions.storages.length > 0 && (
           <AccordionItem value="storage">
             <AccordionTrigger>Storage</AccordionTrigger>
             <AccordionContent>
-              <div className="space-y-2 pt-2">
-                <Button
-                  variant={selectedStorage === "" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedStorage("")}
-                  className="w-full justify-start text-sm"
-                >
-                  Any Storage
-                </Button>
+              <div className="grid grid-cols-2 gap-3 pt-2">
                 {filterOptions.storages.map((storage) => (
-                  <Button
-                    key={storage}
-                    variant={selectedStorage === storage ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setSelectedStorage(storage)}
-                    className="w-full justify-start text-sm"
-                  >
-                    {storage}
-                  </Button>
+                  <div key={storage} className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "relative flex h-5 w-5 cursor-pointer items-center justify-center rounded-md border-2 transition-all duration-200",
+                        selectedStorage === storage
+                          ? "border-primary bg-primary"
+                          : "border-muted-foreground hover:border-foreground"
+                      )}
+                      onClick={() => {
+                        setSelectedStorage(selectedStorage === storage ? "" : storage);
+                      }}
+                    >
+                      {selectedStorage === storage && (
+                        <div className="h-2 w-2 rounded-full bg-white"></div>
+                      )}
+                    </div>
+                    <Label
+                      className={cn(
+                        "cursor-pointer text-sm font-medium transition-colors duration-200",
+                        selectedStorage === storage
+                          ? "text-foreground font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => {
+                        setSelectedStorage(selectedStorage === storage ? "" : storage);
+                      }}
+                    >
+                      {storage}
+                    </Label>
+                  </div>
                 ))}
               </div>
             </AccordionContent>
@@ -739,9 +767,9 @@ const Category: React.FC = () => {
           </Breadcrumb>
           <h1 className="mt-4 text-2xl md:text-3xl font-semibold">{categoryName}</h1>
           <p className="text-muted-foreground mt-2">
-            {isLoading || isLoadingCount
-              ? "Loading products with multiple listings..." 
-              : `Showing ${visibleProducts.length} of ${filtered.length} filtered products (${loadedCount || 0} total with >1 listings)`
+            {isLoading
+              ? "Loading products..."
+              : `Showing ${visibleProducts.length} of ${filtered.length} results ${totalVariantsCount !== undefined ? `(${totalVariantsCount} total in ${categoryName})` : ''}`
             }
           </p>
         </div>
@@ -805,13 +833,13 @@ const Category: React.FC = () => {
             <div className="mt-8">
               {hasMoreFiltered && (
                 <div className="flex justify-center">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="default"
                     onClick={loadMoreFiltered}
-                    disabled={false}
-                    className="px-8 py-3 text-base font-medium bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
+                    disabled={isFetchingNextPage}
+                    className="px-8 py-3 text-base font-medium transition-all duration-200 hover:opacity-90"
                   >
-                    Load More... ({visibleProducts.length} of {filtered.length} products)
+                    {isFetchingNextPage ? "Loading..." : "Load more..."}
                   </Button>
                 </div>
               )}

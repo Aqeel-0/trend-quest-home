@@ -1,6 +1,7 @@
-import { useInfiniteQuery, useQuery, QueryFunctionContext } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useState, useEffect } from "react";
+
+const PAGE_SIZE = 20;
 
 export interface ListingData {
   id: string;
@@ -27,25 +28,29 @@ export interface ProductVariantWithListings {
   images: any;
   created_at: string;
   updated_at: string;
-  products: {
+  product: {
     id: string;
     model_name: string;
     brand_id: string;
     category_id: string;
-    brands: {
-      id: string;
-      name: string;
-      slug: string;
-      logo_url: string | null;
-    };
-    categories: {
-      id: string;
-      name: string;
-      slug: string;
-    };
+    slug: string;
+    specifications: any;
+    status: string;
+  };
+  brand: {
+    id: string;
+    name: string;
+    slug: string;
+    logo_url: string | null;
+  };
+  category: {
+    id: string;
+    name: string;
+    slug: string;
+    level: number;
   };
   listings: ListingData[];
-  // Computed fields for easy access
+  // Computed fields
   minPrice: number;
   secondMinPrice: number | null;
   storeCount: number;
@@ -69,400 +74,198 @@ export const SORT_OPTIONS: SortOption[] = [
   { value: "stores", label: "Most Stores" },
 ];
 
-const PAGE_SIZE = 20;
-
-interface UseProductVariantsWithListingsProps {
-  sortBy?: string;
-  enabled?: boolean;
-  categorySlug?: string;
-}
-
-// NEW HOOK: Fetch ALL variants with >1 listings and store locally
-export const useProductVariantsWithMultipleListings = ({ 
-  sortBy = "newest", 
-  enabled = true,
-  categorySlug 
-}: UseProductVariantsWithListingsProps = {}) => {
-  
-  const [allVariants, setAllVariants] = useState<ProductVariantWithListings[]>([]);
-  const [displayedCount, setDisplayedCount] = useState(20);
-  const [isLocalLoading, setIsLocalLoading] = useState(false);
-  
-  // Fetch ALL variants with database-level filtering for >1 listings
-  const fetchAllVariantsWithMultipleListings = async (): Promise<ProductVariantWithListings[]> => {
-    console.log('🔍 Fetching ALL variants with >1 listings from database...');
-    
-    // Step 1: Get variants grouped by variant ID with listing counts
-    let countQuery = supabase
-      .from('listings')
-      .select(`
-        variant_id,
-        product_variants!inner (
-          id,
-          name,
-          product_id,
-          sku,
-          attributes,
-          images,
-          created_at,
-          updated_at,
-          is_active,
-          products!inner (
-            id,
-            model_name,
-            brand_id,
-            category_id,
-            is_active,
-            brands!inner (
-              id,
-              name,
-              slug,
-              logo_url,
-              is_active
-            ),
-            categories!inner (
-              id,
-              name,
-              slug,
-              is_active
-            )
-          )
-        )
-      `)
-      .eq('is_active', true)
-      .eq('product_variants.is_active', true)
-      .eq('product_variants.products.is_active', true)
-      .eq('product_variants.products.brands.is_active', true)
-      .eq('product_variants.products.categories.is_active', true);
-
-    // Add category filter if provided
-    if (categorySlug) {
-      countQuery = countQuery.eq('product_variants.products.categories.slug', categorySlug);
-    }
-
-    const { data: listingCounts, error: countError } = await countQuery;
-
-    if (countError) {
-      console.error('Error fetching listing counts:', countError);
-      throw countError;
-    }
-
-    if (!listingCounts || listingCounts.length === 0) {
-      console.log('⚠️ No listings found');
-      return [];
-    }
-
-    // Group by variant and count listings
-    const variantListingCounts = new Map<string, { count: number; variant: any }>();
-    listingCounts.forEach(item => {
-      const variantId = item.variant_id;
-      if (!variantListingCounts.has(variantId)) {
-        variantListingCounts.set(variantId, {
-          count: 0,
-          variant: item.product_variants
-        });
-      }
-      variantListingCounts.get(variantId)!.count++;
-    });
-
-    // Filter variants with MORE than 1 listing (>1)
-    const variantsWithMultipleListings = Array.from(variantListingCounts.entries())
-      .filter(([_, data]) => data.count > 1)
-      .map(([variantId, data]) => ({
-        variantId,
-        listingCount: data.count,
-        variant: data.variant
-      }));
-
-    console.log(`📊 Found ${variantsWithMultipleListings.length} variants with >1 listings`);
-
-    if (variantsWithMultipleListings.length === 0) {
-      return [];
-    }
-
-    // Step 2: Get all listings for these variants
-    const variantIds = variantsWithMultipleListings.map(v => v.variantId);
-    
-    const { data: allListings, error: listingsError } = await supabase
-      .from('listings')
-      .select(`
-        id,
-        variant_id,
-        price,
-        original_price,
-        discount_percentage,
-        store_name,
-        rating,
-        review_count,
-        stock_status,
-        currency,
-        url,
-        affiliate_url,
-        seller_name,
-        created_at
-      `)
-      .in('variant_id', variantIds)
-      .eq('is_active', true);
-
-    if (listingsError) {
-      console.error('Error fetching listings:', listingsError);
-      throw listingsError;
-    }
-
-    // Step 3: Group listings by variant and create final structure
-    const listingsByVariant = new Map<string, ListingData[]>();
-    allListings?.forEach(listing => {
-      if (!listingsByVariant.has(listing.variant_id)) {
-        listingsByVariant.set(listing.variant_id, []);
-      }
-      listingsByVariant.get(listing.variant_id)!.push(listing);
-    });
-
-    // Step 4: Create final ProductVariantWithListings array
-    const processedVariants: ProductVariantWithListings[] = variantsWithMultipleListings.map(({ variantId, variant }) => {
-      const listings = listingsByVariant.get(variantId) || [];
-      
-      // Sort listings by price for min price calculation
-      const sortedByPrice = [...listings].sort((a, b) => a.price - b.price);
-      const minPrice = sortedByPrice[0]?.price || 0;
-      const secondMinPrice = sortedByPrice[1]?.price || null;
-      
-      // Calculate average rating and total reviews
-      const ratingsWithValues = listings.filter(l => l.rating && l.rating > 0);
-      const avgRating = ratingsWithValues.length > 0
-        ? ratingsWithValues.reduce((sum, l) => sum + (l.rating || 0), 0) / ratingsWithValues.length
-        : null;
-      const totalReviews = listings.reduce((sum, l) => sum + l.review_count, 0);
-      
-      // Extract primary image - handle different image formats
-      let primaryImage: string | null = null;
-      if (variant.images) {
-        if (typeof variant.images === 'string') {
-          primaryImage = variant.images;
-        } else if (Array.isArray(variant.images) && variant.images.length > 0) {
-          const firstImage = variant.images[0];
-          if (typeof firstImage === 'string') {
-            primaryImage = firstImage;
-          } else if (typeof firstImage === 'object' && firstImage !== null && 'url' in firstImage) {
-            primaryImage = firstImage.url as string;
-          }
-        } else if (typeof variant.images === 'object' && variant.images !== null && 'primary' in variant.images) {
-          primaryImage = variant.images.primary as string;
-        } else if (typeof variant.images === 'object' && variant.images !== null && 'url' in variant.images) {
-          primaryImage = variant.images.url as string;
-        }
-      }
-
-      return {
-        id: variant.id,
-        name: variant.name,
-        product_id: variant.product_id,
-        sku: variant.sku,
-        attributes: variant.attributes,
-        images: variant.images,
-        created_at: variant.created_at,
-        updated_at: variant.updated_at,
-        products: variant.products,
-        listings,
-        minPrice,
-        secondMinPrice,
-        storeCount: listings.length,
-        primaryImage,
-        avgRating,
-        totalReviews,
-      };
-    });
-
-    console.log(`✅ Processed ${processedVariants.length} variants with multiple listings`);
-    return processedVariants;
+// Convert category slug to proper category name
+const getCategoryNameFromSlug = (slug: string): string => {
+  const categoryMap: { [key: string]: string } = {
+    'smartphones': 'Smartphones',
+    'basic-phones': 'Basic Phones',
+    'feature-phones': 'Feature Phones',
+    'tablets': 'Tablets',
+    'laptops': 'Laptops',
+    'headphones': 'Headphones',
+    'smartwatches': 'Smartwatches',
+    'accessories': 'Accessories'
   };
+  
+  return categoryMap[slug] || 'Smartphones'; // Default to Smartphones
+};
 
-  // Main query to fetch all data
-  const query = useQuery({
-    queryKey: ["variants-multiple-listings", categorySlug],
-    queryFn: fetchAllVariantsWithMultipleListings,
-    enabled,
+// Hook to get total count for any category
+export const useSmartphoneVariantsTotalCount = (categorySlug?: string) => {
+  return useQuery({
+    queryKey: ["category-variants-total-count", categorySlug],
+    queryFn: async () => {
+      const categoryName = getCategoryNameFromSlug(categorySlug || 'smartphones');
+      console.log(`🔍 Fetching total count for category: ${categoryName}`);
+      
+      const { data, error } = await supabase.rpc('get_category_variants_count' as any, {
+        category_name_param: categoryName
+      });
+      
+      if (error) {
+        console.error('Error fetching total count:', error);
+        throw error;
+      }
+      
+      console.log(`📊 Total variants with multiple listings for ${categoryName}: ${data}`);
+      return data || 0;
+    },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
+};
 
-  // Update local state when query data changes
-  useEffect(() => {
-    if (query.data) {
-      console.log(`📦 Storing ${query.data.length} variants locally`);
-      const sortedData = sortProductVariants(query.data, sortBy);
-      setAllVariants(sortedData);
-      setDisplayedCount(20); // Reset to show first 20
-    }
-  }, [query.data, sortBy]);
-
-  // Get currently displayed variants (first N)
-  const displayedVariants = allVariants.slice(0, displayedCount);
-  
-  // Load more function
-  const loadMore = () => {
-    setIsLocalLoading(true);
-    // Simulate loading delay for better UX
-    setTimeout(() => {
-      const newCount = Math.min(displayedCount + 20, allVariants.length);
-      console.log(`📄 Loading more: showing ${newCount} of ${allVariants.length} variants`);
-      setDisplayedCount(newCount);
-      setIsLocalLoading(false);
-    }, 500);
-  };
-
-  const hasNextPage = displayedCount < allVariants.length;
-
-  return {
-    data: {
-      pages: [displayedVariants], // Mimic infinite query structure for compatibility
-      pageParams: [0],
+// Hook to fetch product variants by category with all data
+export const useProductVariantsByCategory = (categorySlug: string, sort: string = "newest") => {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["product-variants-by-category", categorySlug, sort],
+    queryFn: async () => {
+      const categoryName = getCategoryNameFromSlug(categorySlug);
+      console.log(`🔍 Fetching product variants for category: ${categoryName} (slug: ${categorySlug})`);
+      
+      const { data, error } = await supabase.rpc('get_category_variants_paginated' as any, {
+        category_name_param: categoryName,
+        limit_count: 1000, // Increased limit to accommodate all products
+        offset_count: 0
+      });
+      
+      if (error) {
+        console.error('Error fetching product variants by category:', error);
+        throw error;
+      }
+      
+      if (!data) {
+        return [];
+      }
+      
+      console.log(`📊 Raw data for category ${categoryName}:`, data);
+      
+      // Process and enhance the data with computed fields
+      const processedData: ProductVariantWithListings[] = data.map((variant: any) => {
+        const listings = variant.listings || [];
+        
+        // Sort listings by price for min price calculation
+        const sortedByPrice = [...listings].sort((a: any, b: any) => a.price - b.price);
+        const minPrice = sortedByPrice[0]?.price || 0;
+        const secondMinPrice = sortedByPrice[1]?.price || null;
+        
+        // Calculate average rating and total reviews
+        const ratingsWithValues = listings.filter((l: any) => l.rating && l.rating > 0);
+        const avgRating = ratingsWithValues.length > 0
+          ? ratingsWithValues.reduce((sum: number, l: any) => sum + (l.rating || 0), 0) / ratingsWithValues.length
+          : null;
+        const totalReviews = listings.reduce((sum: number, l: any) => sum + (l.review_count || 0), 0);
+        
+        // Extract primary image
+        const primaryImage = extractPrimaryImage(variant.images);
+        
+        return {
+          id: variant.id,
+          name: variant.name,
+          product_id: variant.product?.id || '',
+          sku: variant.sku,
+          attributes: variant.attributes,
+          images: variant.images,
+          created_at: variant.created_at,
+          updated_at: variant.updated_at,
+          product: variant.product,
+          brand: variant.brand,
+          category: variant.category,
+          listings,
+          minPrice,
+          secondMinPrice,
+          storeCount: listings.length,
+          primaryImage,
+          avgRating,
+          totalReviews,
+        };
+      });
+      
+      // Apply frontend sorting if needed
+      const sortedData = sortProductVariants(processedData, sort);
+      
+      console.log(`✅ Processed ${sortedData.length} product variants for category ${categoryName}`);
+      return sortedData;
     },
-    allVariants, // All loaded variants for filtering
-    displayedVariants, // Currently shown variants
-    displayedCount,
-    totalCount: allVariants.length,
-    isLoading: query.isLoading,
-    error: query.error,
-    fetchNextPage: loadMore,
-    hasNextPage,
-    isFetchingNextPage: isLocalLoading,
-    // Additional utilities
-    resetToFirst20: () => setDisplayedCount(20),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+  
+  // Return the structure that Category.tsx expects
+  return {
+    data: data || [],
+    allVariants: data || [],
+    displayedVariants: data || [],
+    displayedCount: data?.length || 0,
+    totalCount: data?.length || 0,
+    isLoading,
+    error,
+    fetchNextPage: () => {},
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    resetToFirst20: () => {}
   };
 };
 
-// Legacy hook for backward compatibility (but not used in new implementation)
-export const useProductVariantsWithListings = ({ 
-  sortBy = "newest", 
-  enabled = true,
-  categorySlug 
-}: UseProductVariantsWithListingsProps = {}) => {
+// Hook to fetch paginated smartphone variants with all data
+export const useSmartphoneVariantsWithListings = ({
+  sortBy = "newest",
+  enabled = true
+}: {
+  sortBy?: string;
+  enabled?: boolean;
+} = {}) => {
   
-  const fetchProductVariants = async (context: QueryFunctionContext<unknown[], number>) => {
-    const { pageParam = 0 } = context;
-    const from = pageParam * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-
-    console.log(`🔍 Fetching product variants ${from}-${to}`);
-
-    // Single optimized query with all necessary joins
-    let query = supabase
-      .from('product_variants')
-      .select(`
-        id,
-        name,
-        product_id,
-        sku,
-        attributes,
-        images,
-        created_at,
-        updated_at,
-        products!inner (
-          id,
-          model_name,
-          brand_id,
-          category_id,
-          brands!inner (
-            id,
-            name,
-            slug,
-            logo_url
-          ),
-          categories!inner (
-            id,
-            name,
-            slug
-          )
-        ),
-        listings!inner (
-          id,
-          price,
-          original_price,
-          discount_percentage,
-          store_name,
-          rating,
-          review_count,
-          stock_status,
-          currency,
-          url,
-          affiliate_url,
-          seller_name,
-          created_at
-        )
-      `)
-      .eq('is_active', true)
-      .eq('listings.is_active', true)
-      .eq('products.is_active', true)
-      .eq('products.brands.is_active', true)
-      .eq('products.categories.is_active', true);
-
-    // Add category filter if provided
-    if (categorySlug) {
-      query = query.eq('products.categories.slug', categorySlug);
-    }
-
-    const { data: rawData, error } = await query
-      .range(from, to)
-      .order('created_at', { ascending: false });
-
+  const fetchSmartphoneVariants = async ({ pageParam = 0 }) => {
+    const offset = pageParam * PAGE_SIZE;
+    console.log(`🔍 Fetching smartphone variants page ${pageParam + 1} (offset: ${offset})`);
+    
+    const { data, error } = await supabase.rpc('get_category_variants_paginated' as any, {
+      category_name_param: 'Smartphones',
+      limit_count: PAGE_SIZE,
+      offset_count: offset
+    });
+    
     if (error) {
-      console.error('Error fetching product variants:', error);
+      console.error('Error fetching smartphone variants:', error);
       throw error;
     }
-
-    if (!rawData) {
+    
+    if (!data) {
       return [];
     }
+    
     // Process and enhance the data with computed fields
-    const processedData: ProductVariantWithListings[] = rawData.map((variant) => {
-      const listings = variant.listings as ListingData[];
+    const processedData: ProductVariantWithListings[] = data.map((variant: any) => {
+      const listings = variant.listings || [];
       
       // Sort listings by price for min price calculation
-      const sortedByPrice = [...listings].sort((a, b) => a.price - b.price);
+      const sortedByPrice = [...listings].sort((a: any, b: any) => a.price - b.price);
       const minPrice = sortedByPrice[0]?.price || 0;
       const secondMinPrice = sortedByPrice[1]?.price || null;
       
       // Calculate average rating and total reviews
-      const ratingsWithValues = listings.filter(l => l.rating && l.rating > 0);
+      const ratingsWithValues = listings.filter((l: any) => l.rating && l.rating > 0);
       const avgRating = ratingsWithValues.length > 0
-        ? ratingsWithValues.reduce((sum, l) => sum + (l.rating || 0), 0) / ratingsWithValues.length
+        ? ratingsWithValues.reduce((sum: number, l: any) => sum + (l.rating || 0), 0) / ratingsWithValues.length
         : null;
-      const totalReviews = listings.reduce((sum, l) => sum + l.review_count, 0);
+      const totalReviews = listings.reduce((sum: number, l: any) => sum + (l.review_count || 0), 0);
       
-      // Extract primary image - handle different image formats
-      let primaryImage: string | null = null;
-      if (variant.images) {
-        if (typeof variant.images === 'string') {
-          // If it's a string URL
-          primaryImage = variant.images;
-        } else if (Array.isArray(variant.images) && variant.images.length > 0) {
-          // If it's an array, take the first one
-          const firstImage = variant.images[0];
-          if (typeof firstImage === 'string') {
-            primaryImage = firstImage;
-          } else if (typeof firstImage === 'object' && firstImage !== null && 'url' in firstImage) {
-            primaryImage = firstImage.url as string;
-          }
-        } else if (typeof variant.images === 'object' && variant.images !== null && 'primary' in variant.images) {
-          // If it's an object with a primary key
-          primaryImage = variant.images.primary as string;
-        } else if (typeof variant.images === 'object' && variant.images !== null && 'url' in variant.images) {
-          // If it's an object with url key
-          primaryImage = variant.images.url as string;
-        }
-      }
-
+      // Extract primary image
+      const primaryImage = extractPrimaryImage(variant.images);
+      
       return {
         id: variant.id,
         name: variant.name,
-        product_id: variant.product_id,
+        product_id: variant.product?.id || '',
         sku: variant.sku,
         attributes: variant.attributes,
         images: variant.images,
         created_at: variant.created_at,
         updated_at: variant.updated_at,
-        products: variant.products, // Include the joined product/brand/category data
+        product: variant.product,
+        brand: variant.brand,
+        category: variant.category,
         listings,
         minPrice,
         secondMinPrice,
@@ -472,38 +275,120 @@ export const useProductVariantsWithListings = ({
         totalReviews,
       };
     });
-
-    console.log(`✅ Processed ${processedData.length} variants with listings`);
     
-    // Debug: Log first few variants to see the data structure
-    if (processedData.length > 0) {
-      console.log('🔍 Sample variant data:', {
-        firstVariant: processedData[0],
-        listingsCount: processedData[0]?.listings?.length,
-        sampleListings: processedData[0]?.listings?.slice(0, 3)
-      });
-    }
+    // Apply frontend sorting if needed
+    const sortedData = sortProductVariants(processedData, sortBy);
     
-    return processedData;
+    console.log(`✅ Processed ${sortedData.length} smartphone variants for page ${pageParam + 1}`);
+    return sortedData;
   };
 
-  return useInfiniteQuery<ProductVariantWithListings[], Error>({
-    queryKey: ["product-variants-with-listings", sortBy, categorySlug],
-    queryFn: fetchProductVariants,
-    getNextPageParam: (lastPage: ProductVariantWithListings[], allPages: ProductVariantWithListings[][]) => {
+  return useInfiniteQuery({
+    queryKey: ["smartphone-variants-paginated", sortBy],
+    queryFn: fetchSmartphoneVariants,
+    getNextPageParam: (lastPage, allPages) => {
       // Continue loading if we got a full page
       return lastPage.length === PAGE_SIZE ? allPages.length : undefined;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
     enabled,
     initialPageParam: 0,
   });
 };
 
+// Hook to get product data from a variant ID
+export const useProductFromVariant = (variantId: string) => {
+  return useQuery({
+    queryKey: ["product-from-variant", variantId],
+    queryFn: async () => {
+      console.log(`🔍 Fetching product data from variant ID: ${variantId}`);
+      const { data, error } = await supabase
+        .from("product_variants")
+        .select(`
+          *,
+          product:products!inner (
+            id, model_name, description, min_price, max_price, rating,
+            specifications, brand_id, category_id
+          ),
+          listings (
+            id, price, original_price, discount_percentage,
+            stock_status, store_name, title, url, images,
+            currency, rating, review_count
+          )
+        `)
+        .eq("id", variantId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching product from variant:', error);
+        throw error;
+      }
+
+      if (!data) {
+        return null;
+      }
+
+      console.log(`📊 Product data from variant ${variantId}:`, data);
+
+      // Process listings to add computed fields
+      const listings = data.listings || [];
+      const sortedByPrice = [...listings].sort((a: any, b: any) => a.price - b.price);
+      const minPrice = sortedByPrice[0]?.price || 0;
+      const secondMinPrice = sortedByPrice[1]?.price || null;
+
+      // Calculate average rating and total reviews
+      const ratingsWithValues = listings.filter((l: any) => l.rating && l.rating > 0);
+      const avgRating = ratingsWithValues.length > 0
+        ? ratingsWithValues.reduce((sum: number, l: any) => sum + (l.rating || 0), 0) / ratingsWithValues.length
+        : null;
+      const totalReviews = listings.reduce((sum: number, l: any) => sum + (l.review_count || 0), 0);
+
+      // Extract primary image
+      const primaryImage = extractPrimaryImage(data.images);
+
+      const processedData = {
+        ...data,
+        minPrice,
+        secondMinPrice,
+        storeCount: listings.length,
+        primaryImage,
+        avgRating,
+        totalReviews,
+      };
+
+      console.log(`✅ Processed product data from variant ${variantId}:`, processedData);
+      return processedData;
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+};
+
+// Helper function to extract primary image
+const extractPrimaryImage = (images: any): string | null => {
+  if (!images) return null;
+  
+  if (typeof images === 'string') {
+    return images;
+  } else if (Array.isArray(images) && images.length > 0) {
+    const firstImage = images[0];
+    if (typeof firstImage === 'string') {
+      return firstImage;
+    } else if (typeof firstImage === 'object' && firstImage !== null && 'url' in firstImage) {
+      return firstImage.url as string;
+    }
+  } else if (typeof images === 'object' && images !== null) {
+    if ('primary' in images) return images.primary as string;
+    if ('url' in images) return images.url as string;
+  }
+  
+  return null;
+};
+
 // Utility function to sort variants in frontend
 export const sortProductVariants = (
-  variants: ProductVariantWithListings[], 
+  variants: ProductVariantWithListings[],
   sortBy: string
 ): ProductVariantWithListings[] => {
   const sorted = [...variants];
@@ -535,111 +420,7 @@ export const sortProductVariants = (
   }
 };
 
-// Count query for variants with >1 listings
-export const useProductVariantsTotalCount = (categorySlug: string) => {
-  return useQuery({
-    queryKey: ["product-variants-total-count-multiple-listings", categorySlug],
-    queryFn: async () => {
-      // Get count by counting variants that have >1 listings
-      let countQuery = supabase
-        .from('listings')
-        .select(`
-          variant_id,
-          product_variants!inner (
-            id,
-            is_active,
-            products!inner (
-              is_active,
-              categories!inner (
-                slug,
-                is_active
-              )
-            )
-          )
-        `)
-        .eq('is_active', true)
-        .eq('product_variants.is_active', true)
-        .eq('product_variants.products.is_active', true)
-        .eq('product_variants.products.categories.is_active', true);
-
-      if (categorySlug) {
-        countQuery = countQuery.eq('product_variants.products.categories.slug', categorySlug);
-      }
-
-      const { data: listingCounts, error } = await countQuery;
-
-      if (error) {
-        console.error('Error fetching total count:', error);
-        throw error;
-      }
-
-      if (!listingCounts) {
-        return 0;
-      }
-
-      // Group by variant and count listings
-      const variantListingCounts = new Map<string, number>();
-      listingCounts.forEach(item => {
-        const variantId = item.variant_id;
-        variantListingCounts.set(variantId, (variantListingCounts.get(variantId) || 0) + 1);
-      });
-
-      // Count variants with MORE than 1 listing (>1)
-      const variantsWithMultipleListings = Array.from(variantListingCounts.values())
-        .filter(count => count > 1);
-
-      return variantsWithMultipleListings.length;
-    },
-    enabled: !!categorySlug,
-    staleTime: 10 * 60 * 1000, // 10 minutes
-  });
-};
-
-// Hook specifically for category page - now uses the new implementation
-export const useProductVariantsByCategory = (categorySlug: string, sortBy: string = "newest") => {
-  return useProductVariantsWithMultipleListings({
-    sortBy,
-    categorySlug,
-    enabled: !!categorySlug,
-  });
-};
-
-// Hook to get product details from variant ID
-export const useProductFromVariant = (variantId: string) => {
-  return useQuery({
-    queryKey: ["product-from-variant", variantId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('product_variants')
-        .select(`
-          id,
-          name,
-          product_id,
-          attributes,
-          images,
-          products!inner (
-            id,
-            model_name,
-            min_price,
-            max_price,
-            rating,
-            description,
-            specifications,
-            brands (name, slug, logo_url),
-            categories (name, slug)
-          )
-        `)
-        .eq('id', variantId)
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!variantId,
-  });
-};
-
-// Utility function to get formatted price with currency
+// Utility function to format price with currency
 export const formatPrice = (price: number, currency: string = "INR"): string => {
   const currencySymbols: { [key: string]: string } = {
     "INR": "₹",
