@@ -7,8 +7,8 @@ import { ThemeProvider } from "next-themes";
 import NavBar from "@/components/NavBar";
 import Index from "./pages/Index";
 import Category from "./pages/Category";
+import Product from "./pages/Product";
 import NotFound from "./pages/NotFound";
-// import Product from "./pages/Product";
 import SearchResults from "./pages/SearchResults";
 //import { ProductVariantsPage } from "./pages/ProductVariants";
 
@@ -28,7 +28,7 @@ const App = () => (
             <Route path="/search" element={<SearchResults />} />
             {/* <Route path="/variants" element={<ProductVariantsPage />} /> */}
             <Route path="/category/:slug" element={<Category />} />
-            {/* <Route path="/product/:id" element={<Product />} /> */}
+            <Route path="/product/:id" element={<Product />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

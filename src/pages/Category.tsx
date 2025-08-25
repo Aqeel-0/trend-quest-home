@@ -119,7 +119,7 @@ const CategoryProductCard: React.FC<{ product: CategoryProduct; onQuickView: (p:
   };
   
   return (
-    <Link to={`/product/${product.id}`} className="block">
+            <Link to={`/product/${product.id}`} className="block">
         <Card className="group overflow-hidden bg-card border-2 border-border/40 hover:border-border/80 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 dark:bg-gray-900/50 dark:border-gray-600/60 dark:hover:border-gray-500 dark:hover:bg-gray-900/80 h-full flex flex-col">
         {/* Image Section - Optimized for Perfect Display */}
         <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-muted/20 to-muted/40 dark:from-muted/40 dark:to-muted/60 p-3">

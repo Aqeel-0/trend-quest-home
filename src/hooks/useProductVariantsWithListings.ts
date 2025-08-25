@@ -1,7 +1,9 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useCallback, useState } from "react";
 
-const PAGE_SIZE = 20;
+
 
 export interface ListingData {
   id: string;
@@ -57,6 +59,61 @@ export interface ProductVariantWithListings {
   primaryImage: string | null;
   avgRating: number | null;
   totalReviews: number;
+}
+
+// New interfaces for variant selection
+export interface SelectionAttributes {
+  color: string | null;
+  ram: string | null;
+  storage: string | null;
+}
+
+export interface ProcessedVariant {
+  id: string;
+  name: string;
+  product_id: string;
+  sku: string | null;
+  attributes: any;
+  images: any;
+  created_at: string;
+  updated_at: string;
+  listings: ListingData[];
+  minPrice: number;
+  secondMinPrice: number | null;
+  storeCount: number;
+  avgRating: number | null;
+  totalReviews: number;
+  selectionAttributes: SelectionAttributes;
+}
+
+export interface AvailabilityMatrix {
+  colors: string[];
+  ram: string[];
+  storage: string[];
+  isCombinationAvailable: (color: string, ram: string, storage: string) => boolean;
+  getVariantsForCombination: (color: string, ram: string, storage: string) => ProcessedVariant[];
+}
+
+export interface ProductVariantSelectionData {
+  product: {
+    id: string;
+    model_name: string;
+    description: string | null;
+    min_price: number | null;
+    max_price: number | null;
+    rating: number | null;
+    specifications: any;
+    brand_id: string;
+    category_id: string;
+  };
+  currentVariant: ProcessedVariant;
+  allVariants: ProcessedVariant[];
+  availabilityMatrix: AvailabilityMatrix;
+  selectionOptions: {
+    colors: string[];
+    ram: string[];
+    storage: string[];
+  };
 }
 
 export interface SortOption {
@@ -207,163 +264,9 @@ export const useProductVariantsByCategory = (categorySlug: string, sort: string 
   };
 };
 
-// Hook to fetch paginated smartphone variants with all data
-export const useSmartphoneVariantsWithListings = ({
-  sortBy = "newest",
-  enabled = true
-}: {
-  sortBy?: string;
-  enabled?: boolean;
-} = {}) => {
-  
-  const fetchSmartphoneVariants = async ({ pageParam = 0 }) => {
-    const offset = pageParam * PAGE_SIZE;
-    console.log(`🔍 Fetching smartphone variants page ${pageParam + 1} (offset: ${offset})`);
-    
-    const { data, error } = await supabase.rpc('get_category_variants_paginated' as any, {
-      category_name_param: 'Smartphones',
-      limit_count: PAGE_SIZE,
-      offset_count: offset
-    });
-    
-    if (error) {
-      console.error('Error fetching smartphone variants:', error);
-      throw error;
-    }
-    
-    if (!data) {
-      return [];
-    }
-    
-    // Process and enhance the data with computed fields
-    const processedData: ProductVariantWithListings[] = data.map((variant: any) => {
-      const listings = variant.listings || [];
-      
-      // Sort listings by price for min price calculation
-      const sortedByPrice = [...listings].sort((a: any, b: any) => a.price - b.price);
-      const minPrice = sortedByPrice[0]?.price || 0;
-      const secondMinPrice = sortedByPrice[1]?.price || null;
-      
-      // Calculate average rating and total reviews
-      const ratingsWithValues = listings.filter((l: any) => l.rating && l.rating > 0);
-      const avgRating = ratingsWithValues.length > 0
-        ? ratingsWithValues.reduce((sum: number, l: any) => sum + (l.rating || 0), 0) / ratingsWithValues.length
-        : null;
-      const totalReviews = listings.reduce((sum: number, l: any) => sum + (l.review_count || 0), 0);
-      
-      // Extract primary image
-      const primaryImage = extractPrimaryImage(variant.images);
-      
-      return {
-        id: variant.id,
-        name: variant.name,
-        product_id: variant.product?.id || '',
-        sku: variant.sku,
-        attributes: variant.attributes,
-        images: variant.images,
-        created_at: variant.created_at,
-        updated_at: variant.updated_at,
-        product: variant.product,
-        brand: variant.brand,
-        category: variant.category,
-        listings,
-        minPrice,
-        secondMinPrice,
-        storeCount: listings.length,
-        primaryImage,
-        avgRating,
-        totalReviews,
-      };
-    });
-    
-    // Apply frontend sorting if needed
-    const sortedData = sortProductVariants(processedData, sortBy);
-    
-    console.log(`✅ Processed ${sortedData.length} smartphone variants for page ${pageParam + 1}`);
-    return sortedData;
-  };
 
-  return useInfiniteQuery({
-    queryKey: ["smartphone-variants-paginated", sortBy],
-    queryFn: fetchSmartphoneVariants,
-    getNextPageParam: (lastPage, allPages) => {
-      // Continue loading if we got a full page
-      return lastPage.length === PAGE_SIZE ? allPages.length : undefined;
-    },
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    enabled,
-    initialPageParam: 0,
-  });
-};
 
-// Hook to get product data from a variant ID
-export const useProductFromVariant = (variantId: string) => {
-  return useQuery({
-    queryKey: ["product-from-variant", variantId],
-    queryFn: async () => {
-      console.log(`🔍 Fetching product data from variant ID: ${variantId}`);
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(`
-          *,
-          product:products!inner (
-            id, model_name, description, min_price, max_price, rating,
-            specifications, brand_id, category_id
-          ),
-          listings (
-            id, price, original_price, discount_percentage,
-            stock_status, store_name, title, url, images,
-            currency, rating, review_count
-          )
-        `)
-        .eq("id", variantId)
-        .single();
 
-      if (error) {
-        console.error('Error fetching product from variant:', error);
-        throw error;
-      }
-
-      if (!data) {
-        return null;
-      }
-
-      console.log(`📊 Product data from variant ${variantId}:`, data);
-
-      // Process listings to add computed fields
-      const listings = data.listings || [];
-      const sortedByPrice = [...listings].sort((a: any, b: any) => a.price - b.price);
-      const minPrice = sortedByPrice[0]?.price || 0;
-      const secondMinPrice = sortedByPrice[1]?.price || null;
-
-      // Calculate average rating and total reviews
-      const ratingsWithValues = listings.filter((l: any) => l.rating && l.rating > 0);
-      const avgRating = ratingsWithValues.length > 0
-        ? ratingsWithValues.reduce((sum: number, l: any) => sum + (l.rating || 0), 0) / ratingsWithValues.length
-        : null;
-      const totalReviews = listings.reduce((sum: number, l: any) => sum + (l.review_count || 0), 0);
-
-      // Extract primary image
-      const primaryImage = extractPrimaryImage(data.images);
-
-      const processedData = {
-        ...data,
-        minPrice,
-        secondMinPrice,
-        storeCount: listings.length,
-        primaryImage,
-        avgRating,
-        totalReviews,
-      };
-
-      console.log(`✅ Processed product data from variant ${variantId}:`, processedData);
-      return processedData;
-    },
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
-  });
-};
 
 // Helper function to extract primary image
 const extractPrimaryImage = (images: any): string | null => {
@@ -404,7 +307,7 @@ export const sortProductVariants = (
       return sorted.sort((a, b) => a.minPrice - b.minPrice);
     
     case "price_high":
-      return sorted.sort((a, b) => b.minPrice - a.minPrice);
+      return sorted.sort((b, a) => a.minPrice - b.minPrice);
     
     case "rating":
       return sorted.sort((a, b) => (b.avgRating || 0) - (a.avgRating || 0));
@@ -431,4 +334,314 @@ export const formatPrice = (price: number, currency: string = "INR"): string => 
   
   const symbol = currencySymbols[currency] || currency;
   return `${symbol}${price.toLocaleString()}`;
+};
+
+
+
+
+
+// New optimized hook specifically for variant selection
+export const useProductVariantSelection = (variantId: string) => {
+  return useQuery<ProductVariantSelectionData>({
+    queryKey: ["product-variant-selection", variantId],
+    queryFn: async (): Promise<ProductVariantSelectionData> => {
+      console.log(`🔍 Starting variant selection query for ID: "${variantId}"`);
+      
+      // Step 1: Get the initial variant and product data
+      const { data: initialVariant, error: variantError } = await supabase
+        .from("product_variants")
+        .select(`
+          id, name, product_id, sku, attributes, images, created_at, updated_at,
+          product:products!inner (
+            id, model_name, description, min_price, max_price, rating,
+            specifications, brand_id, category_id
+          ),
+          listings (
+            id, price, original_price, discount_percentage,
+            stock_status, store_name, title, url, images,
+            currency, rating, review_count
+          )
+        `)
+        .eq("id", variantId)
+        .eq("is_active", true)
+        .single();
+      
+      if (variantError || !initialVariant) {
+        console.error('❌ Error fetching initial variant:', variantError);
+        throw new Error(`Variant not found: ${variantId}`);
+      }
+      
+      console.log(`✅ Found initial variant: "${initialVariant.name}"`);
+      console.log(`✅ Product ID: ${initialVariant.product_id}`);
+      
+      // Step 2: Fetch all variants for this product with complete data
+      const { data: allVariants, error: variantsError } = await supabase
+        .from("product_variants")
+        .select(`
+          id, name, product_id, sku, attributes, images, created_at, updated_at,
+          listings (
+            id, price, original_price, discount_percentage,
+            stock_status, store_name, title, url, images,
+            currency, rating, review_count
+          )
+        `)
+        .eq("product_id", initialVariant.product_id)
+        .eq("is_active", true)
+        .order("created_at", { ascending: true });
+      
+      if (variantsError || !allVariants) {
+        console.error('❌ Error fetching all variants:', variantsError);
+        throw new Error('Failed to fetch product variants');
+      }
+      
+      console.log(`✅ Found ${allVariants.length} variants for product`);
+      
+      // Step 3: Process variants and create availability matrix
+      const processedVariants: ProcessedVariant[] = allVariants.map((variant: any) => {
+        const listings = variant.listings || [];
+        const attrs = variant.attributes || {};
+        
+        // Calculate pricing
+        let minPrice = 0;
+        let secondMinPrice = null;
+        if (listings.length > 0) {
+          if (listings.length === 1) {
+            minPrice = listings[0].price;
+          } else if (listings.length === 2) {
+            minPrice = Math.min(listings[0].price, listings[1].price);
+            secondMinPrice = Math.max(listings[0].price, listings[1].price);
+          } else {
+            const sortedByPrice = [...listings].sort((a: any, b: any) => a.price - b.price);
+            minPrice = sortedByPrice[0]?.price || 0;
+            secondMinPrice = sortedByPrice[1]?.price || null;
+          }
+        }
+        
+        // Calculate ratings
+        let totalRating = 0;
+        let ratingCount = 0;
+        let totalReviews = 0;
+        
+        for (const listing of listings) {
+          if (listing.rating && listing.rating > 0) {
+            totalRating += listing.rating;
+            ratingCount++;
+          }
+          totalReviews += listing.review_count || 0;
+        }
+        
+        const avgRating = ratingCount > 0 ? totalRating / ratingCount : null;
+        
+        return {
+          ...variant,
+          minPrice,
+          secondMinPrice,
+          storeCount: listings.length,
+          avgRating,
+          totalReviews,
+          // Extract selection attributes
+          selectionAttributes: {
+            color: attrs.color || null,
+            ram: attrs.ram_gb ? `${attrs.ram_gb}GB` : attrs.ram || null,
+            storage: attrs.storage_gb ? `${attrs.storage_gb}GB` : attrs.storage || null
+          }
+        };
+      });
+      
+      // Step 4: Create availability matrix
+      const availabilityMatrix = createAvailabilityMatrix(processedVariants);
+      
+      // Step 5: Find current variant in processed data
+      const currentVariant = processedVariants.find(v => v.id === variantId);
+      
+      if (!currentVariant) {
+        throw new Error('Current variant not found in processed data');
+      }
+      
+      console.log('✅ Variant selection data processed successfully');
+      console.log('🔍 Availability matrix:', availabilityMatrix);
+      
+      return {
+        product: initialVariant.product,
+        currentVariant,
+        allVariants: processedVariants,
+        availabilityMatrix,
+        selectionOptions: {
+          colors: availabilityMatrix.colors,
+          ram: availabilityMatrix.ram,
+          storage: availabilityMatrix.storage
+        }
+      };
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 20 * 60 * 1000, // 20 minutes
+    enabled: !!variantId,
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
+};
+
+// Helper function to create availability matrix for variant combinations
+const createAvailabilityMatrix = (variants: ProcessedVariant[]): AvailabilityMatrix => {
+  const colors = new Set<string>();
+  const ram = new Set<string>();
+  const storage = new Set<string>();
+  
+  // Extract all available options
+  variants.forEach(variant => {
+    const attrs = variant.selectionAttributes;
+    if (attrs.color) colors.add(attrs.color);
+    if (attrs.ram) ram.add(attrs.ram);
+    if (attrs.storage) storage.add(attrs.storage);
+  });
+  
+  // Sort options logically
+  const sortedColors = Array.from(colors).sort();
+  const sortedRam = Array.from(ram).sort((a, b) => {
+    const aNum = parseInt(a.replace(/\D/g, ''));
+    const bNum = parseInt(b.replace(/\D/g, ''));
+    return aNum - bNum;
+  });
+  const sortedStorage = Array.from(storage).sort((a, b) => {
+    const aNum = parseInt(a.replace(/\D/g, ''));
+    const bNum = parseInt(b.replace(/\D/g, ''));
+    return aNum - bNum;
+  });
+  
+  return {
+    colors: sortedColors,
+    ram: sortedRam,
+    storage: sortedStorage,
+    // Helper function to check if a combination is available
+    isCombinationAvailable: (color: string, ram: string, storage: string): boolean => {
+      return variants.some(variant => {
+        const attrs = variant.selectionAttributes;
+        return attrs.color === color && attrs.ram === ram && attrs.storage === storage;
+      });
+    },
+    // Get available variants for a specific combination
+    getVariantsForCombination: (color: string, ram: string, storage: string): ProcessedVariant[] => {
+      return variants.filter(variant => {
+        const attrs = variant.selectionAttributes;
+        return attrs.color === color && attrs.ram === ram && attrs.storage === storage;
+      });
+    }
+  };
+};
+
+// Custom hook for variant selection logic
+export const useVariantSelectionLogic = (variantId: string) => {
+  const { data, isLoading, error } = useProductVariantSelection(variantId);
+  const navigate = useNavigate();
+  
+  // State for current selection
+  const [currentSelection, setCurrentSelection] = useState<SelectionAttributes>({
+    color: null,
+    ram: null,
+    storage: null
+  });
+  
+  // Initialize selection from current variant
+  useEffect(() => {
+    if (data?.currentVariant) {
+      const attrs = data.currentVariant.selectionAttributes;
+      setCurrentSelection({
+        color: attrs.color,
+        ram: attrs.ram,
+        storage: attrs.storage
+      });
+    }
+  }, [data?.currentVariant]);
+  
+  // Get available options based on current selection
+  const availableOptions = useMemo(() => {
+    if (!data?.availabilityMatrix) return { colors: [], ram: [], storage: [] };
+    
+    const { availabilityMatrix } = data;
+    const { color, ram, storage } = currentSelection;
+    
+    // Get all available colors
+    const availableColors = availabilityMatrix.colors;
+    
+    // Get available RAM options for current color
+    const availableRam = availabilityMatrix.ram.filter(ramOption => {
+      if (!color) return true;
+      return availabilityMatrix.isCombinationAvailable(color, ramOption, storage || '');
+    });
+    
+    // Get available storage options for current color and RAM
+    const availableStorage = availabilityMatrix.storage.filter(storageOption => {
+      if (!color || !ram) return true;
+      return availabilityMatrix.isCombinationAvailable(color, ram, storageOption);
+    });
+    
+    return {
+      colors: availableColors,
+      ram: availableRam,
+      storage: availableStorage
+    };
+  }, [data?.availabilityMatrix, currentSelection]);
+  
+  // Check if a specific option is available
+  const isOptionAvailable = useCallback((type: keyof SelectionAttributes, value: string): boolean => {
+    if (!data?.availabilityMatrix) return false;
+    
+    const { availabilityMatrix } = data;
+    const { color, ram, storage } = currentSelection;
+    
+    switch (type) {
+      case 'color':
+        return availabilityMatrix.colors.includes(value);
+      case 'ram':
+        if (!color) return availabilityMatrix.ram.includes(value);
+        return availabilityMatrix.isCombinationAvailable(color, value, storage || '');
+      case 'storage':
+        if (!color || !ram) return availabilityMatrix.storage.includes(value);
+        return availabilityMatrix.isCombinationAvailable(color, ram, value);
+      default:
+        return false;
+    }
+  }, [data?.availabilityMatrix, currentSelection]);
+  
+  // Handle option selection
+  const handleOptionChange = useCallback((type: keyof SelectionAttributes, value: string) => {
+    const newSelection = { ...currentSelection, [type]: value };
+    setCurrentSelection(newSelection);
+    
+    // Find matching variant
+    const matchingVariant = data?.allVariants.find(variant => {
+      const attrs = variant.selectionAttributes;
+      return attrs.color === newSelection.color && 
+             attrs.ram === newSelection.ram && 
+             attrs.storage === newSelection.storage;
+    });
+    
+    if (matchingVariant) {
+      // Update URL with new variant ID
+      navigate(`/product/${matchingVariant.id}`, { replace: true });
+    }
+  }, [currentSelection, data?.allVariants, navigate]);
+  
+  // Get current variant based on selection
+  const selectedVariant = useMemo(() => {
+    if (!data?.allVariants) return null;
+    
+    return data.allVariants.find(variant => {
+      const attrs = variant.selectionAttributes;
+      return attrs.color === currentSelection.color && 
+             attrs.ram === currentSelection.ram && 
+             attrs.storage === currentSelection.storage;
+    }) || data.currentVariant;
+  }, [data?.allVariants, data?.currentVariant, currentSelection]);
+  
+  return {
+    data,
+    isLoading,
+    error,
+    currentSelection,
+    availableOptions,
+    selectedVariant,
+    isOptionAvailable,
+    handleOptionChange
+  };
 };
