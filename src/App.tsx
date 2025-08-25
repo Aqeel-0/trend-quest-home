@@ -7,9 +7,10 @@ import { ThemeProvider } from "next-themes";
 import NavBar from "@/components/NavBar";
 import Index from "./pages/Index";
 import Category from "./pages/Category";
-import NotFound from "./pages/NotFound";
 import Product from "./pages/Product";
+import NotFound from "./pages/NotFound";
 import SearchResults from "./pages/SearchResults";
+//import { ProductVariantsPage } from "./pages/ProductVariants";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="/search" element={<SearchResults />} />
+            {/* <Route path="/variants" element={<ProductVariantsPage />} /> */}
             <Route path="/category/:slug" element={<Category />} />
             <Route path="/product/:id" element={<Product />} />
             <Route path="*" element={<NotFound />} />
