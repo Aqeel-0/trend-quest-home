@@ -12,7 +12,7 @@ import ProductCard from "@/components/ProductCard";
 import { Star } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useProducts } from "@/hooks/useProducts";
-import { useVariantSelectionLogic } from "@/hooks/useProductVariantsWithListings";
+import { useVariantSelectionLogic, extractAllImages, extractPrimaryImage, useRelatedProducts } from "@/hooks/useProductVariantsWithListings";
 import { formatCurrency } from "@/utils/currency";
 import { PerformanceMonitor } from "@/components/PerformanceMonitor";
 
@@ -29,7 +29,12 @@ const RatingStars = React.memo(({ rating }: { rating: number }) => {
     <div className="flex items-center gap-1" aria-label={`${rating} out of 5 stars`}>
       {Array.from({ length: 5 }).map((_, i) => {
         const fill = i < full || (i === full && half);
-        return <Star key={i} className={fill ? "fill-current" : ""} />;
+        return (
+          <Star 
+            key={i} 
+            className={`w-4 h-4 ${fill ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} 
+          />
+        );
       })}
     </div>
   );
@@ -41,15 +46,32 @@ RatingStars.displayName = 'RatingStars';
 const VariantSelection = ({ 
   availableOptions, 
   currentSelection, 
-  onOptionChange 
+  onOptionChange,
+  allVariants 
 }: {
   availableOptions: { colors: string[]; ram: string[]; storage: string[] };
   currentSelection: { color: string | null; ram: string | null; storage: string | null };
   onOptionChange: (type: 'color' | 'ram' | 'storage', value: string) => void;
+  allVariants: any[];
 }) => {
   const hasOptions = availableOptions.colors.length > 0 || availableOptions.ram.length > 0 || availableOptions.storage.length > 0;
   
   if (!hasOptions) return null;
+
+  // Helper function to get the first image for a color variant
+  const getColorVariantImage = (color: string): string | null => {
+    const colorVariant = allVariants.find(variant => {
+      const attrs = variant.attributes || {};
+      return attrs.color === color;
+    });
+    
+    if (!colorVariant) return null;
+    
+
+    
+    // Use the extractPrimaryImage function to get the main image
+    return extractPrimaryImage(colorVariant.images);
+  };
   
   return (
     <div className="rounded-lg border p-4 space-y-4">
@@ -64,16 +86,57 @@ const VariantSelection = ({
             value={currentSelection.color || ""}
             onValueChange={(value) => onOptionChange('color', value)}
           >
-            {availableOptions.colors.map((color) => (
-              <label key={color} className="cursor-pointer">
-                <RadioGroupItem
-                  value={color}
-                  aria-label={color}
-                  className="h-7 w-7 rounded-full border border-input ring-offset-background data-[state=checked]:ring-2 data-[state=checked]:ring-primary data-[state=checked]:ring-offset-2 [&_svg]:hidden"
-                  style={{ backgroundColor: getColorHex(color) }}
-                />
-              </label>
-            ))}
+            {availableOptions.colors.map((color) => {
+              const variantImage = getColorVariantImage(color);
+              const isSelected = currentSelection.color === color;
+              
+              return (
+                <label key={color} className="cursor-pointer flex flex-col items-center">
+                  <RadioGroupItem
+                    value={color}
+                    aria-label={color}
+                    className="sr-only"
+                  />
+                  <div 
+                    className={`
+                      relative w-16 h-16 rounded-lg border-2 overflow-hidden transition-all duration-200
+                      ${isSelected 
+                        ? 'border-primary' 
+                        : 'border-input hover:border-primary/50'
+                      }
+                    `}
+                  >
+                    {variantImage ? (
+                      <>
+                        <img
+                          src={variantImage}
+                          alt={`${color} variant`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            // Fallback to colored background if image fails to load
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            target.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                        <div 
+                          className="hidden w-full h-full rounded-lg"
+                          style={{ backgroundColor: getColorHex(color) }}
+                        />
+                      </>
+                    ) : (
+                      <div 
+                        className="w-full h-full rounded-lg"
+                        style={{ backgroundColor: getColorHex(color) }}
+                      />
+                    )}
+                  </div>
+                  <div className="text-sm font-bold text-center mt-1 text-muted-foreground uppercase tracking-wide">
+                    {color}
+                  </div>
+                </label>
+              );
+            })}
           </RadioGroup>
         </div>
       )}
@@ -162,6 +225,7 @@ const FallbackVariants = ({ variants }: { variants: any[] }) => {
 export default function Product() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [relatedProductsPage, setRelatedProductsPage] = React.useState(1);
   
   // Use the optimized variant selection logic
   const {
@@ -174,9 +238,12 @@ export default function Product() {
     handleOptionChange
   } = useVariantSelectionLogic(id ?? "");
   
-  // Related products
-  const { data: relatedProducts } = useProducts(4);
+  // Related products with pagination
+  const { data: relatedProductsData } = useRelatedProducts(selectedVariant, relatedProductsPage, 8);
   
+  // Fallback related products for when no similar products found
+  const { data: fallbackProducts } = useProducts(4);
+
   // Process product data
   const processedProductData = React.useMemo(() => {
     if (!data?.product || !selectedVariant) {
@@ -188,32 +255,27 @@ export default function Product() {
         reviews: 0,
         short: "",
         features: [],
-        priceRange: "Loading...",
       };
     }
 
     // Use variant images if available, otherwise fallback
-    const images = selectedVariant.images && Array.isArray(selectedVariant.images) && selectedVariant.images.length > 0
-      ? selectedVariant.images.map((img: any) => typeof img === 'string' ? img : img.url).filter(Boolean)
-      : [prodLaptop, prodWatch, prodController, prodHeadphones];
+    const variantImages = extractAllImages(selectedVariant.images);
+    const images = variantImages.length > 0 ? variantImages : [prodLaptop, prodWatch, prodController, prodHeadphones];
 
     return {
       id: data.product.id,
       title: selectedVariant.name || data.product.model_name,
       images,
-      rating: data.product.rating || 4.5,
+      rating: 4.5, // Default rating since rating is computed from listings
       reviews: Math.floor(Math.random() * 2000) + 100,
       short: data.product.description || "Product description not available.",
       features: (data.product.specifications as any)?.features || [
-        "High-quality construction",
-        "Advanced technology", 
-        "Reliable performance",
-        "Excellent value",
-        "Customer satisfaction guaranteed",
-      ],
-      priceRange: selectedVariant.minPrice && selectedVariant.secondMinPrice
-        ? `${formatCurrency(selectedVariant.minPrice)} — ${formatCurrency(selectedVariant.secondMinPrice)}`
-        : selectedVariant.minPrice ? formatCurrency(selectedVariant.minPrice) : "Price not available",
+         "High-quality construction",
+         "Advanced technology", 
+         "Reliable performance",
+         "Excellent value",
+         "Customer satisfaction guaranteed",
+       ],
     };
   }, [id, data, selectedVariant]);
 
@@ -221,9 +283,9 @@ export default function Product() {
   const offers = React.useMemo(() => {
     if (!selectedVariant?.listings?.length) {
       return [
-        { store: "NovaMart", price: processedProductData.priceRange, delivery: "Free 2–4 days", url: "#", inStock: true },
-        { store: "QuickBuy", price: processedProductData.priceRange, delivery: "$5 • Next day", url: "#", inStock: true },
-        { store: "Shoply", price: processedProductData.priceRange, delivery: "Free • 5–7 days", url: "#", inStock: true },
+        { store: "NovaMart", price: "Price not available", delivery: "Free 2–4 days", url: "#", inStock: true },
+        { store: "QuickBuy", price: "Price not available", delivery: "$5 • Next day", url: "#", inStock: true },
+        { store: "Shoply", price: "Price not available", delivery: "Free • 5–7 days", url: "#", inStock: true },
       ];
     }
 
@@ -234,28 +296,41 @@ export default function Product() {
       url: listing.url,
       inStock: listing.stock_status === 'in_stock',
     }));
-  }, [selectedVariant, processedProductData.priceRange]);
+  }, [selectedVariant]);
 
   // Related products
   const related = React.useMemo(() => {
-    if (!relatedProducts) {
-      return [
-        { id: "rel-1", title: "Ergonomic Wireless Mouse", image: prodController, lowestPrice: "$29.99", store: "NovaMart" },
-        { id: "rel-2", title: "Portable Bluetooth Speaker", image: prodWatch, lowestPrice: "$49.00", store: "QuickBuy" },
-        { id: "rel-3", title: "USB‑C Fast Charger 65W", image: prodLaptop, lowestPrice: "$24.50", store: "Shoply" },
-        { id: "rel-4", title: "Hi‑Res In‑Ear Monitors", image: prodHeadphones, lowestPrice: "$89.00", store: "PriceHub" },
-      ];
+    // Use price-based related products if available
+    if (relatedProductsData?.products && relatedProductsData.products.length > 0) {
+      return relatedProductsData.products.map((product) => ({
+        id: product.id,
+        title: product.name,
+        image: product.primaryImage || prodLaptop,
+        lowestPrice: formatCurrency(product.minPrice),
+        store: `${product.storeCount} store${product.storeCount > 1 ? 's' : ''}`,
+      }));
     }
 
-    const fallbackImages = [prodController, prodWatch, prodLaptop, prodHeadphones];
-    return relatedProducts.map((product, index) => ({
-      id: product.id,
-      title: product.model_name,
-      image: fallbackImages[index % fallbackImages.length],
-      lowestPrice: product.min_price ? formatCurrency(product.min_price) : "N/A",
-      store: "Multiple stores",
-    }));
-  }, [relatedProducts]);
+    // Fallback to general products
+    if (fallbackProducts) {
+      const fallbackImages = [prodController, prodWatch, prodLaptop, prodHeadphones];
+      return fallbackProducts.map((product, index) => ({
+        id: product.id,
+        title: product.model_name,
+        image: fallbackImages[index % fallbackImages.length],
+        lowestPrice: product.min_price ? formatCurrency(product.min_price) : "N/A",
+        store: "Multiple stores",
+      }));
+    }
+
+    // Last resort fallback
+    return [
+      { id: "rel-1", title: "Ergonomic Wireless Mouse", image: prodController, lowestPrice: "$29.99", store: "NovaMart" },
+      { id: "rel-2", title: "Portable Bluetooth Speaker", image: prodWatch, lowestPrice: "$49.00", store: "QuickBuy" },
+      { id: "rel-3", title: "USB‑C Fast Charger 65W", image: prodLaptop, lowestPrice: "$24.50", store: "Shoply" },
+      { id: "rel-4", title: "Hi‑Res In‑Ear Monitors", image: prodHeadphones, lowestPrice: "$89.00", store: "PriceHub" },
+    ];
+  }, [relatedProductsData, fallbackProducts]);
 
   // Memoized product schema
   const productSchema = React.useMemo(() => ({
@@ -270,7 +345,7 @@ export default function Product() {
     },
     offers: offers.map((o) => ({
       '@type': 'Offer',
-      price: o.price.replace(/[^0-9.]/g, ''),
+      price: o.price === 'Price not available' ? '0' : o.price.replace(/[^0-9.]/g, ''),
       priceCurrency: 'USD',
       availability: o.inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
       url: o.url,
@@ -380,15 +455,7 @@ export default function Product() {
             </div>
           </div>
 
-          <div className="rounded-lg border p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-muted-foreground">Price range</div>
-                <div className="text-2xl font-semibold">{processedProductData.priceRange}</div>
-              </div>
-              <Badge variant="secondary">Best value</Badge>
-            </div>
-          </div>
+
 
           <p className="text-muted-foreground">{processedProductData.short}</p>
 
@@ -399,13 +466,14 @@ export default function Product() {
           </ul>
           
           {/* Dynamic Variant Selection */}
-          {hasVariantOptions && (
-            <VariantSelection
-              availableOptions={availableOptions}
-              currentSelection={currentSelection}
-              onOptionChange={handleOptionChange}
-            />
-          )}
+           {hasVariantOptions && (
+             <VariantSelection
+               availableOptions={availableOptions}
+               currentSelection={currentSelection}
+               onOptionChange={handleOptionChange}
+               allVariants={data?.allVariants || []}
+             />
+           )}
           
           {/* Fallback: Show all variants when no specific options are found */}
           {!hasVariantOptions && data?.allVariants && (
@@ -475,9 +543,17 @@ export default function Product() {
       {/* Related products */}
       <section className="mt-12">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Related products</h2>
+          <h2 className="text-xl font-semibold">
+            Related products
+            {relatedProductsData?.totalCount ? (
+              <span className="text-sm font-normal text-muted-foreground ml-2">
+                ({relatedProductsData.totalCount} similar products)
+              </span>
+            ) : null}
+          </h2>
           <Link to="/category/smartphones" className="text-sm underline underline-offset-4">See all</Link>
         </div>
+        
         <Carousel opts={{ align: "start", loop: true }}>
           <CarouselContent>
             {related.map((p) => (
@@ -489,6 +565,61 @@ export default function Product() {
           <CarouselPrevious />
           <CarouselNext />
         </Carousel>
+        
+        {/* Pagination for related products */}
+        {relatedProductsData && relatedProductsData.totalPages > 1 && (
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRelatedProductsPage(prev => Math.max(1, prev - 1))}
+              disabled={relatedProductsPage === 1}
+            >
+              Previous
+            </Button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, relatedProductsData.totalPages) }, (_, i) => {
+                const pageNum = relatedProductsPage <= 3 
+                  ? i + 1 
+                  : relatedProductsPage >= relatedProductsData.totalPages - 2
+                    ? relatedProductsData.totalPages - 4 + i
+                    : relatedProductsPage - 2 + i;
+                    
+                if (pageNum < 1 || pageNum > relatedProductsData.totalPages) return null;
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={pageNum === relatedProductsPage ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setRelatedProductsPage(pageNum)}
+                    className="w-8 h-8 p-0"
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRelatedProductsPage(prev => Math.min(relatedProductsData.totalPages, prev + 1))}
+              disabled={relatedProductsPage === relatedProductsData.totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        )}
+        
+        {/* No related products message */}
+        {relatedProductsData && relatedProductsData.products.length === 0 && (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No similar products found in this price range.</p>
+            <p className="text-sm mt-1">Try browsing our full collection below.</p>
+          </div>
+        )}
       </section>
 
       <script
