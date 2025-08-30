@@ -1036,22 +1036,66 @@ export const useVariantSelectionLogic = (variantId: string) => {
         }
     }, [data?.availabilityMatrix, currentSelection]);
     
-    // Handle option selection
+    // Handle option selection with intelligent fallback matching
     const handleOptionChange = useCallback((type: keyof SelectionAttributes, value: string) => {
         const newSelection = { ...currentSelection, [type]: value };
         setCurrentSelection(newSelection);
         
-        // Find matching variant
-        const matchingVariant = data?.allVariants.find(variant => {
-            const attrs = variant.selectionAttributes;
-            return attrs.color === newSelection.color && 
-                   attrs.ram === newSelection.ram && 
-                   attrs.storage === newSelection.storage;
-        });
+        if (!data?.allVariants) return;
         
-        if (matchingVariant) {
-            // Update URL with new variant ID
-            navigate(`/product/${matchingVariant.id}`, { replace: true });
+        // Smart variant matching with fallback priorities
+        const findBestMatch = (selection: SelectionAttributes) => {
+            const variants = data.allVariants;
+            
+            // Priority 1: Exact match (color + RAM + storage)
+            let match = variants.find(variant => {
+                const attrs = variant.selectionAttributes;
+                return attrs.color === selection.color && 
+                       attrs.ram === selection.ram && 
+                       attrs.storage === selection.storage;
+            });
+            if (match) return match;
+            
+            // Priority 2: Color + RAM match (any storage)
+            match = variants.find(variant => {
+                const attrs = variant.selectionAttributes;
+                return attrs.color === selection.color && 
+                       attrs.ram === selection.ram;
+            });
+            if (match) return match;
+            
+            // Priority 3: Color + Storage match (any RAM)
+            match = variants.find(variant => {
+                const attrs = variant.selectionAttributes;
+                return attrs.color === selection.color && 
+                       attrs.storage === selection.storage;
+            });
+            if (match) return match;
+            
+            // Priority 4: Color match only (any RAM/storage)
+            match = variants.find(variant => {
+                const attrs = variant.selectionAttributes;
+                return attrs.color === selection.color;
+            });
+            if (match) return match;
+            
+            // Priority 5: Random selection if no color match
+            return variants[0] || null;
+        };
+        
+        const bestMatch = findBestMatch(newSelection);
+        
+        if (bestMatch) {
+            // Update selection to match the found variant
+            const matchAttrs = bestMatch.selectionAttributes;
+            setCurrentSelection({
+                color: matchAttrs.color,
+                ram: matchAttrs.ram,
+                storage: matchAttrs.storage
+            });
+            
+            // Navigate to the best matching variant
+            navigate(`/product/${bestMatch.id}`, { replace: true });
         }
     }, [currentSelection, data?.allVariants, navigate]);
     

@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Link } from "react-router-dom";
 
 // Fallback images
 import headphones from "@/assets/prod-headphones.jpg";
@@ -22,6 +23,7 @@ export type Product = {
   store: string;
   rating?: number;
   reviewCount?: number;
+  category?: string; // For breadcrumb navigation
 };
 
 const storeColor: Record<string, string> = {
@@ -38,8 +40,14 @@ const ProductCard = ({ product }: { product: Product }) => {
   const fallbackImage = fallbackImages[Math.floor(Math.random() * fallbackImages.length)];
   const imageUrl = product.image?.startsWith('http') ? product.image : fallbackImage;
   
+  // Build the product URL with category context for breadcrumbs
+  const productUrl = product.category 
+    ? `/product/${product.id}?category=${product.category}`
+    : `/product/${product.id}`;
+  
   return (
-    <Card className="overflow-hidden hover-scale shadow-subtle hover:shadow-elevated transition-shadow h-full flex flex-col">
+    <Link to={productUrl} className="block h-full">
+      <Card className="overflow-hidden hover-scale shadow-subtle hover:shadow-elevated transition-shadow h-full flex flex-col">
       <div className="aspect-[4/3] bg-muted/40 relative">
         <div className="absolute inset-0 flex items-center justify-center p-2">
           <img 
@@ -85,6 +93,7 @@ const ProductCard = ({ product }: { product: Product }) => {
         </div>
       </CardContent>
     </Card>
+    </Link>
   );
 };
 

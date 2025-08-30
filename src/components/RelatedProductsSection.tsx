@@ -1,7 +1,9 @@
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import ProductCard, { Product } from "./ProductCard";
-import { useTrendingProducts } from "@/hooks/useTrendingProducts";
 import { formatCurrency } from "@/utils/currency";
+import { useSimilarProducts } from "@/hooks/useSimilarProducts";
+import { Link } from "react-router-dom";
+import { Star } from "lucide-react";
 
 // Fallback images
 import headphones from "@/assets/prod-headphones.jpg";
@@ -13,25 +15,28 @@ import controller from "@/assets/prod-controller.jpg";
 
 const fallbackImages = [headphones, sneakers, watch, laptop, coffee, controller];
 
-const ProductCarousel = () => {
-  const { data: trendingProducts, isLoading } = useTrendingProducts();
+interface RelatedProductsSectionProps {
+  currentVariant: any;
+  title?: string;
+  limit?: number;
+}
 
-  // Convert Supabase data to ProductCard format
-  const products: Product[] = (trendingProducts || []).map((product, index) => {
+const RelatedProductsSection = ({ 
+  currentVariant, 
+  title = "Related products",
+  limit = 12 
+}: RelatedProductsSectionProps) => {
+  const { data: similarProducts, isLoading } = useSimilarProducts(currentVariant, limit);
+
+  // Convert data to ProductCard format
+  const products: Product[] = (similarProducts || []).map((product, index) => {
     // Get the lowest price listing
     const lowestPriceListing = product.listings.reduce((min, listing) => 
       !min || listing.price < min.price ? listing : min, 
     product.listings[0]);
 
-    // Extract the main image URL
-    let mainImageUrl = fallbackImages[index % fallbackImages.length];
-    if (Array.isArray(product.images) && product.images.length > 0) {
-      // Find the main image or use the first available
-      const mainImage = product.images.find(img => img?.type === 'main') || product.images[0];
-      if (mainImage && mainImage.url) {
-        mainImageUrl = mainImage.url;
-      }
-    }
+    // Use primary image or fallback
+    const mainImageUrl = product.primaryImage || fallbackImages[index % fallbackImages.length];
 
     // Get store count for display
     const storeCount = product.listings?.length || 0;
@@ -57,16 +62,16 @@ const ProductCarousel = () => {
       store: storeDisplay,
       rating: lowestPriceListing?.rating || 0,
       reviewCount: lowestPriceListing?.review_count || 0,
-      category: categorySlug, // Use actual product category
+      category: categorySlug,
     };
   });
 
   if (isLoading) {
     return (
-      <section aria-labelledby="trending" className="py-12 md:py-16">
+      <section aria-labelledby="related" className="py-12 md:py-16">
         <div className="container">
           <div className="flex items-end justify-between gap-4 mb-6">
-            <h2 id="trending" className="text-2xl md:text-3xl font-semibold">Trending products</h2>
+            <h2 id="related" className="text-2xl md:text-3xl font-semibold">{title}</h2>
           </div>
           <div className="flex gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -82,11 +87,15 @@ const ProductCarousel = () => {
     );
   }
 
+  if (!products.length) {
+    return null;
+  }
+
   return (
-    <section aria-labelledby="trending" className="py-12 md:py-16">
+    <section aria-labelledby="related" className="py-12 md:py-16">
       <div className="container">
         <div className="flex items-end justify-between gap-4 mb-6">
-          <h2 id="trending" className="text-2xl md:text-3xl font-semibold">Trending products</h2>
+          <h2 id="related" className="text-2xl md:text-3xl font-semibold">{title}</h2>
         </div>
         <Carousel opts={{ align: "start", loop: true }}>
           <CarouselContent>
@@ -98,34 +107,51 @@ const ProductCarousel = () => {
                   <div className="relative group">
                     {hasDiscount && (
                       <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded z-10">
-                        {p.discount}% OFF
+                        -{p.discount}%
                       </div>
                     )}
-                    <ProductCard product={p} />
-                    <div className="mt-2 flex items-center">
-                      <div className="flex items-center text-amber-400">
-                        {[...Array(5)].map((_, i) => (
-                          <svg
-                            key={i}
-                            className={`w-4 h-4 ${i < Math.floor(p.rating) ? 'fill-current' : 'fill-gray-300'}`}
-                            viewBox="0 0 20 20"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                        ))}
-                        <span className="text-xs text-gray-500 ml-1">({p.reviewCount})</span>
+                    <Link to={`/product/${p.id}`} className="block">
+                      <div className="aspect-[4/3] bg-muted rounded-lg overflow-hidden mb-4">
+                        <img
+                          src={p.image}
+                          alt={p.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
                       </div>
-                    </div>
-                    {p.originalPrice && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-gray-400 text-sm line-through">{p.originalPrice}</span>
-                        <span className="text-green-600 text-sm font-medium">{p.lowestPrice}</span>
+                      <div className="space-y-2">
+                        <h3 className="font-medium text-sm line-clamp-2 group-hover:text-primary transition-colors">
+                          {p.title}
+                        </h3>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-lg">
+                            {p.lowestPrice}
+                          </span>
+                          {hasDiscount && p.originalPrice && (
+                            <span className="text-sm text-muted-foreground line-through">
+                              {p.originalPrice}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="flex">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-3 w-3 ${
+                                  i < Math.floor(p.rating)
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-muted-foreground"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            ({p.reviewCount})
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{p.store}</p>
                       </div>
-                    )}
-                    {!p.originalPrice && (
-                      <div className="text-foreground font-medium mt-1">{p.lowestPrice}</div>
-                    )}
+                    </Link>
                   </div>
                 </CarouselItem>
               );
@@ -139,4 +165,4 @@ const ProductCarousel = () => {
   );
 };
 
-export default ProductCarousel;
+export default RelatedProductsSection;

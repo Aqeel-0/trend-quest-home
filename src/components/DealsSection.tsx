@@ -55,8 +55,11 @@ const DealsSection = () => {
     const displayName = product.product_variants?.name || product.product_variants?.products?.model_name || 'Product';
     const brandName = product.product_variants?.products?.brands?.name || 'Unknown Brand';
     
+    // Get actual category from product data
+    const categorySlug = product.product_variants?.products?.category?.slug || 'smartphones';
+    
     return {
-      id: product.id,
+      id: product.product_variants?.id || product.id, // Use variant ID for navigation
       title: displayName,
       brand: brandName,
       image: mainImageUrl,
@@ -66,6 +69,7 @@ const DealsSection = () => {
       store: storeDisplay,
       rating: listing.rating || 0,
       reviewCount: listing.review_count || 0,
+      category: categorySlug, // Use actual product category
     };
   });
 

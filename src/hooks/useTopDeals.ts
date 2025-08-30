@@ -23,6 +23,11 @@ export const useTopDeals = () => {
             products!inner (
               id,
               model_name,
+              category:categories!inner (
+                id,
+                name,
+                slug
+              ),
               brands (
                 id,
                 name,

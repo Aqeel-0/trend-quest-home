@@ -24,6 +24,12 @@ export interface Brand {
   logo_url: string | null;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface Product {
   id: string;
   model_name: string;
@@ -33,6 +39,7 @@ export interface Product {
   specifications: Record<string, any>;
   status: string;
   brands: Brand;
+  category: Category;
 }
 
 export interface ProductImage {
