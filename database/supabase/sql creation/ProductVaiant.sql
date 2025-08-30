@@ -1,21 +1,23 @@
--- Create product_variants table
-CREATE TABLE IF NOT EXISTS public.product_variants (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    product_id UUID NOT NULL REFERENCES public.products(id) ON UPDATE CASCADE ON DELETE CASCADE,
-    sku VARCHAR(100) UNIQUE,
-    name VARCHAR(255) NOT NULL,
-    attributes JSONB NOT NULL DEFAULT '{}',
-    images JSONB,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+create table public.product_variants (
+  id uuid not null default gen_random_uuid (),
+  product_id uuid not null,
+  sku character varying(100) null,
+  name character varying(255) not null,
+  attributes jsonb not null default '{}'::jsonb,
+  images jsonb null,
+  is_active boolean not null default true,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  listing_count integer null default 0,
+  constraint product_variants_pkey primary key (id),
+  constraint product_variants_sku_key unique (sku),
+  constraint product_variants_product_id_fkey foreign KEY (product_id) references products (id) on update CASCADE on delete CASCADE
+) TABLESPACE pg_default;
 
--- Create indexes
-CREATE INDEX IF NOT EXISTS product_variants_product_id_idx ON public.product_variants(product_id);
-CREATE INDEX IF NOT EXISTS product_variants_sku_idx ON public.product_variants(sku);
-CREATE INDEX IF NOT EXISTS product_variants_active_idx ON public.product_variants(is_active);
-CREATE INDEX IF NOT EXISTS product_variants_attributes_idx ON public.product_variants USING GIN (attributes);
+create index IF not exists product_variants_product_id_idx on public.product_variants using btree (product_id) TABLESPACE pg_default;
 
--- Drop table
-DROP TABLE IF EXISTS public.product_variants;
+create index IF not exists product_variants_sku_idx on public.product_variants using btree (sku) TABLESPACE pg_default;
+
+create index IF not exists product_variants_active_idx on public.product_variants using btree (is_active) TABLESPACE pg_default;
+
+create index IF not exists product_variants_attributes_idx on public.product_variants using gin (attributes) TABLESPACE pg_default;

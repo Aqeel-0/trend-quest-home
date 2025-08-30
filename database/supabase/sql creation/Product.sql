@@ -1,40 +1,37 @@
--- Create ENUM type for status
-CREATE TYPE product_status AS ENUM ('active', 'discontinued', 'coming_soon');
+create table public.products (
+  id uuid not null default gen_random_uuid (),
+  brand_id uuid not null,
+  category_id uuid null,
+  model_name character varying not null,
+  model_number character varying(100) null,
+  slug character varying not null,
+  description text null,
+  specifications jsonb null,
+  status public.product_status not null default 'active'::product_status,
+  variant_count integer not null default 0,
+  is_featured boolean not null default false,
+  launch_date date null,
+  is_active boolean not null default true,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  original_model_name text null,
+  "Store" text null,
+  constraint products_pkey primary key (id),
+  constraint products_slug_key unique (slug),
+  constraint products_brand_id_fkey foreign KEY (brand_id) references brands (id) on update CASCADE on delete CASCADE,
+  constraint products_category_id_fkey foreign KEY (category_id) references categories (id) on update CASCADE on delete set null
+) TABLESPACE pg_default;
 
--- Create products table
-CREATE TABLE IF NOT EXISTS public.products (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    brand_id UUID NOT NULL REFERENCES public.brands(id) ON UPDATE CASCADE ON DELETE CASCADE,
-    category_id UUID REFERENCES public.categories(id) ON UPDATE CASCADE ON DELETE SET NULL,
-    model_name VARCHAR NOT NULL,
-    model_number VARCHAR(100),
-    slug VARCHAR NOT NULL UNIQUE,
-    description TEXT,
-    specifications JSONB,
-    status product_status NOT NULL DEFAULT 'active',
-    variant_count INTEGER NOT NULL DEFAULT 0,
-    min_price DECIMAL(10,2),
-    max_price DECIMAL(10,2),
-    avg_price DECIMAL(10,2),
-    rating DECIMAL(3,2),
-    is_featured BOOLEAN NOT NULL DEFAULT FALSE,
-    launch_date DATE,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+create index IF not exists products_brand_id_idx on public.products using btree (brand_id) TABLESPACE pg_default;
 
--- Create indexes
-CREATE INDEX IF NOT EXISTS products_brand_id_idx ON public.products(brand_id);
-CREATE INDEX IF NOT EXISTS products_category_id_idx ON public.products(category_id);
-CREATE INDEX IF NOT EXISTS products_model_name_idx ON public.products(model_name);
-CREATE INDEX IF NOT EXISTS products_model_number_idx ON public.products(model_number);
-CREATE UNIQUE INDEX IF NOT EXISTS products_slug_idx ON public.products(slug);
-CREATE INDEX IF NOT EXISTS products_status_idx ON public.products(status);
-CREATE INDEX IF NOT EXISTS products_is_featured_idx ON public.products(is_featured);
-CREATE INDEX IF NOT EXISTS products_price_range_idx ON public.products(min_price, max_price);
-CREATE INDEX IF NOT EXISTS products_rating_idx ON public.products(rating);
+create index IF not exists products_category_id_idx on public.products using btree (category_id) TABLESPACE pg_default;
 
--- Drop table
-DROP TABLE IF EXISTS public.products;
-DROP TYPE IF EXISTS product_status;
+create index IF not exists products_model_name_idx on public.products using btree (model_name) TABLESPACE pg_default;
+
+create index IF not exists products_model_number_idx on public.products using btree (model_number) TABLESPACE pg_default;
+
+create unique INDEX IF not exists products_slug_idx on public.products using btree (slug) TABLESPACE pg_default;
+
+create index IF not exists products_status_idx on public.products using btree (status) TABLESPACE pg_default;
+
+create index IF not exists products_is_featured_idx on public.products using btree (is_featured) TABLESPACE pg_default;
