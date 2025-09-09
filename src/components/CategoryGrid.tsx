@@ -1,10 +1,11 @@
-import { LucideIcon, Smartphone, Laptop, Zap, MoreHorizontal } from "lucide-react";
+import { LucideIcon, Smartphone, Laptop, Zap, MoreHorizontal, Tablet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useFeaturedCategories } from "@/hooks/useCategories";
 
 // Icon mapping for categories
 const iconMap: Record<string, LucideIcon> = {
   "smartphones": Smartphone,
+  "tablets": Tablet,
   "laptops": Laptop,
   "electronics": Zap,
   "coming-soon": MoreHorizontal,
@@ -13,8 +14,9 @@ const iconMap: Record<string, LucideIcon> = {
 // Categories to display
 const categories = [
   { name: "Smartphones", slug: "smartphones", icon: "smartphones" },
-  { name: "Electronics", slug: "electronics", icon: "electronics" },
+  { name: "Tablets", slug: "tablets", icon: "tablets" },
   { name: "Laptops", slug: "laptops", icon: "laptops" },
+  { name: "Electronics", slug: "electronics", icon: "electronics" },
   { name: "Gaming Consoles", slug: "gaming-consoles", icon: "coming-soon" },
   { name: "Coming Soon...", slug: "coming-soon-1", icon: "coming-soon" },
   { name: "Coming Soon...", slug: "coming-soon-2", icon: "coming-soon" },

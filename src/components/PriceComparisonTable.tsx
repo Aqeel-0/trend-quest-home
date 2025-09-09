@@ -28,8 +28,8 @@ export default function PriceComparisonTable({ offers }: { offers: Offer[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {offers.map((o) => (
-              <TableRow key={o.store}>
+            {offers.map((o, index) => (
+              <TableRow key={`${o.store}-${index}`}>
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
@@ -64,8 +64,8 @@ export default function PriceComparisonTable({ offers }: { offers: Offer[] }) {
 
       {/* Mobile cards */}
       <div className="space-y-3 md:hidden">
-        {offers.map((o) => (
-          <div key={o.store} className="rounded-lg border p-3">
+        {offers.map((o, index) => (
+          <div key={`${o.store}-${index}`} className="rounded-lg border p-3">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">

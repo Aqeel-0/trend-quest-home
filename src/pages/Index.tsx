@@ -1,6 +1,6 @@
 import Hero from "@/components/Hero";
 import CategoryGrid from "@/components/CategoryGrid";
-import ProductCarousel from "@/components/ProductCarousel";
+import TrendingSection from "@/components/TrendingSection";
 import DealsSection from "@/components/DealsSection";
 import Footer from "@/components/Footer";
 
@@ -10,7 +10,7 @@ const Index = () => {
       <Hero />
       <main className="flex-1">
         <CategoryGrid />
-        <ProductCarousel />
+        <TrendingSection />
         <DealsSection />
       </main>
       <Footer />

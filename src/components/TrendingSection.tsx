@@ -13,7 +13,7 @@ import controller from "@/assets/prod-controller.jpg";
 
 const fallbackImages = [headphones, sneakers, watch, laptop, coffee, controller];
 
-const ProductCarousel = () => {
+const TrendingSection = () => {
   const { data: trendingProducts, isLoading } = useTrendingProducts();
 
   // Convert Supabase data to ProductCard format
@@ -139,4 +139,4 @@ const ProductCarousel = () => {
   );
 };
 
-export default ProductCarousel;
+export default TrendingSection;

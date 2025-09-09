@@ -130,9 +130,9 @@ export const SORT_OPTIONS: SortOption[] = [
 const getCategoryNameFromSlug = (slug: string): string => {
     const categoryMap: { [key: string]: string } = {
         'smartphones': 'Smartphones',
+        'tablets': 'Tablets',
         'basic-phones': 'Basic Phones',
         'feature-phones': 'Feature Phones',
-        'tablets': 'Tablets',
         'laptops': 'Laptops',
         'headphones': 'Headphones',
         'smartwatches': 'Smartwatches',
@@ -148,19 +148,28 @@ export const useCategoryData = (categorySlug: string) => {
         queryKey: ["category-data", categorySlug],
         queryFn: async () => {
             const categoryName = getCategoryNameFromSlug(categorySlug);
+            console.log('category name: ', categoryName);
+            // Determine the level based on category slug
+            const categoryLevels: Record<string, number> = {
+                'smartphones': 4,
+                'tablets': 2,
+                // Add other categories and their levels as needed
+            };
+            
+            const level = categoryLevels[categorySlug] || 4; // Default to 4 if not specified
             
             const { data, error } = await supabase
                 .from("categories")
                 .select("id, name, slug, level")
-                .ilike("name", categoryName)
-                .eq("level", 4)
+                .eq("slug", categorySlug)
+                .eq("level", level)
                 .eq("is_active", true)
                 .single();
             
             if (error || !data) {
                 throw new Error(`Category not found: ${categoryName}`);
             }
-            
+            console.log('category data: ', data);
             return data;
         },
         staleTime: 10 * 60 * 1000, // 10 minutes
@@ -169,7 +178,7 @@ export const useCategoryData = (categorySlug: string) => {
 };
 
 // Hook to get total count for any category
-export const useSmartphoneVariantsTotalCount = (categorySlug?: string) => {
+export const useCategoryVariantsTotalCount = (categorySlug?: string) => {
     const { data: categoryData, error: categoryError } = useCategoryData(categorySlug || 'smartphones');
     
     return useQuery({

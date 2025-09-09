@@ -86,7 +86,7 @@ const initials = (name: string) => name.split(" ").map((n) => n[0]).join("").sli
 // Import optimized hooks
 import { 
     useProductVariantsByCategory, 
-    useSmartphoneVariantsTotalCount as useProductVariantsTotalCount,
+    useCategoryVariantsTotalCount,
     extractPrimaryImage
 } from "@/hooks/useProductVariantsWithListings";
 
@@ -275,7 +275,7 @@ const Category: React.FC = () => {
     } = useProductVariantsByCategory(slug ?? "", sort);
     
     // Get total count for display
-    const { data: totalVariantsCount } = useProductVariantsTotalCount(slug);
+    const { data: totalVariantsCount } = useCategoryVariantsTotalCount(slug);
 
     // Reset display count when filters change
     useEffect(() => {
