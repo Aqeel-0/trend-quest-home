@@ -1,138 +1,101 @@
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import ProductCard, { Product } from "./ProductCard";
-import { useTrendingProducts } from "@/hooks/useTrendingProducts";
-import { formatCurrency } from "@/utils/currency";
+import { useRef, useState, useEffect, useCallback } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import ProductCard from "@/components/ProductCard";
 
-// Fallback images
-import headphones from "@/assets/prod-headphones.jpg";
-import sneakers from "@/assets/prod-sneakers.jpg";
-import watch from "@/assets/prod-watch.jpg";
-import laptop from "@/assets/prod-laptop.jpg";
-import coffee from "@/assets/prod-coffeemaker.jpg";
-import controller from "@/assets/prod-controller.jpg";
+interface ProductItem {
+  id: string;
+  title: string;
+  brand?: string;
+  image: string;
+  lowestPrice: string;
+  originalPrice?: string | null;
+  discount?: number;
+  store: string;
+  rating?: number;
+  reviewCount?: number;
+  category?: string;
+}
 
-const fallbackImages = [headphones, sneakers, watch, laptop, coffee, controller];
+interface Props {
+  products: ProductItem[];
+}
 
-const ProductCarousel = () => {
-  const { data: trendingProducts, isLoading } = useTrendingProducts();
+export const ProductCarousel = ({ products }: Props) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(true);
 
-  // Convert Supabase data to ProductCard format
-  const products: Product[] = (trendingProducts || []).map((product, index) => {
-    // Get the lowest price listing
-    const lowestPriceListing = product.listings.reduce((min, listing) => 
-      !min || listing.price < min.price ? listing : min, 
-    product.listings[0]);
+  const updateButtons = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 8);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 8);
+  }, []);
 
-    // Extract the main image URL
-    let mainImageUrl = fallbackImages[index % fallbackImages.length];
-    if (Array.isArray(product.images) && product.images.length > 0) {
-      // Find the main image or use the first available
-      const mainImage = product.images.find(img => img?.type === 'main') || product.images[0];
-      if (mainImage && mainImage.url) {
-        mainImageUrl = mainImage.url;
-      }
-    }
-
-    // Get store count for display
-    const storeCount = product.listings?.length || 0;
-    const storeDisplay = storeCount > 1 ? `${storeCount} stores` : (product.listings[0]?.store_name || 'Multiple stores');
-
-    // Use variant name if available, otherwise fall back to product model name
-    const displayName = product.name || product.products.model_name;
-    
-    // Get brand name from the joined brands table if available
-    const brandName = product.products.brands?.name || 'Unknown Brand';
-    
-    return {
-      id: product.id,
-      title: displayName,
-      brand: brandName,
-      image: mainImageUrl,
-      lowestPrice: formatCurrency(lowestPriceListing?.price || 0),
-      originalPrice: lowestPriceListing?.original_price ? formatCurrency(lowestPriceListing.original_price) : null,
-      discount: lowestPriceListing?.discount_percentage,
-      store: storeDisplay,
-      rating: product.listings[0]?.rating || 0,
-      reviewCount: product.listings[0]?.review_count || 0,
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    updateButtons();
+    el.addEventListener("scroll", updateButtons, { passive: true });
+    window.addEventListener("resize", updateButtons);
+    return () => {
+      el.removeEventListener("scroll", updateButtons);
+      window.removeEventListener("resize", updateButtons);
     };
-  });
+  }, [updateButtons]);
 
-  if (isLoading) {
-    return (
-      <section aria-labelledby="trending" className="py-12 md:py-16">
-        <div className="container">
-          <div className="flex items-end justify-between gap-4 mb-6">
-            <h2 id="trending" className="text-2xl md:text-3xl font-semibold">Trending products</h2>
-          </div>
-          <div className="flex gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="flex-1">
-                <div className="aspect-[4/3] bg-muted animate-pulse rounded-lg mb-4" />
-                <div className="h-4 bg-muted animate-pulse rounded mb-2" />
-                <div className="h-6 bg-muted animate-pulse rounded w-20" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
+  const scrollBy = (dir: 1 | -1) => {
+    const el = ref.current;
+    if (!el) return;
+    const card = el.querySelector<HTMLElement>("[data-carousel-item]");
+    const step = card ? card.offsetWidth + 24 : el.clientWidth * 0.8;
+    el.scrollBy({ left: step * dir * 2, behavior: "smooth" });
+  };
+
+  if (!products.length) return null;
 
   return (
-    <section aria-labelledby="trending" className="py-12 md:py-16">
-      <div className="container">
-        <div className="flex items-end justify-between gap-4 mb-6">
-          <h2 id="trending" className="text-2xl md:text-3xl font-semibold">Trending products</h2>
-        </div>
-        <Carousel opts={{ align: "start", loop: true }}>
-          <CarouselContent>
-            {products.map((p) => {
-              const hasDiscount = p.discount && p.discount > 0;
-              
-              return (
-                <CarouselItem key={p.id} className="basis-11/12 sm:basis-1/2 md:basis-1/3 lg:basis-1/4">
-                  <div className="relative group">
-                    {hasDiscount && (
-                      <div className="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded z-10">
-                        {p.discount}% OFF
-                      </div>
-                    )}
-                    <ProductCard product={p} />
-                    <div className="mt-2 flex items-center">
-                      <div className="flex items-center text-amber-400">
-                        {[...Array(5)].map((_, i) => (
-                          <svg
-                            key={i}
-                            className={`w-4 h-4 ${i < Math.floor(p.rating) ? 'fill-current' : 'fill-gray-300'}`}
-                            viewBox="0 0 20 20"
-                            xmlns="http://www.w3.org/2000/svg"
-                          >
-                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                          </svg>
-                        ))}
-                        <span className="text-xs text-gray-500 ml-1">({p.reviewCount})</span>
-                      </div>
-                    </div>
-                    {p.originalPrice && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-gray-400 text-sm line-through">{p.originalPrice}</span>
-                        <span className="text-green-600 text-sm font-medium">{p.lowestPrice}</span>
-                      </div>
-                    )}
-                    {!p.originalPrice && (
-                      <div className="text-foreground font-medium mt-1">{p.lowestPrice}</div>
-                    )}
-                  </div>
-                </CarouselItem>
-              );
-            })}
-          </CarouselContent>
-          <CarouselPrevious />
-          <CarouselNext />
-        </Carousel>
+    <div className="relative -mx-4 sm:-mx-6 lg:mx-0">
+      <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-12 lg:w-16 z-10 bg-gradient-to-r from-background to-transparent" />
+      <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-12 lg:w-16 z-10 bg-gradient-to-l from-background to-transparent" />
+
+      <button
+        type="button"
+        onClick={() => scrollBy(-1)}
+        aria-label="Scroll left"
+        disabled={!canScrollLeft}
+        className={`hidden md:grid absolute left-3 lg:left-4 top-[40%] -translate-y-1/2 z-20 h-12 w-12 place-items-center rounded-full bg-card border border-border shadow-card text-foreground transition-base hover:bg-foreground hover:text-background hover:border-foreground ${
+          canScrollLeft ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <ChevronLeft className="h-5 w-5" />
+      </button>
+      <button
+        type="button"
+        onClick={() => scrollBy(1)}
+        aria-label="Scroll right"
+        disabled={!canScrollRight}
+        className={`hidden md:grid absolute right-3 lg:right-4 top-[40%] -translate-y-1/2 z-20 h-12 w-12 place-items-center rounded-full bg-card border border-border shadow-card text-foreground transition-base hover:bg-foreground hover:text-background hover:border-foreground ${
+          canScrollRight ? "opacity-100" : "opacity-0 pointer-events-none"
+        }`}
+      >
+        <ChevronRight className="h-5 w-5" />
+      </button>
+
+      <div
+        ref={ref}
+        className="no-scrollbar snap-x-mandatory overflow-x-auto scroll-smooth flex gap-6 px-4 sm:px-6 lg:px-2 pb-4"
+      >
+        {products.map((p) => (
+          <div
+            key={p.id}
+            data-carousel-item
+            className="snap-start-always shrink-0 w-[260px] sm:w-[280px] lg:w-[300px]"
+          >
+            <ProductCard product={p} />
+          </div>
+        ))}
       </div>
-    </section>
+    </div>
   );
 };
-
-export default ProductCarousel;

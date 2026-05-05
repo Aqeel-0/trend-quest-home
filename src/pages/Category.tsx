@@ -86,7 +86,7 @@ const initials = (name: string) => name.split(" ").map((n) => n[0]).join("").sli
 // Import optimized hooks
 import { 
     useProductVariantsByCategory, 
-    useSmartphoneVariantsTotalCount as useProductVariantsTotalCount,
+    useCategoryVariantsTotalCount,
     extractPrimaryImage
 } from "@/hooks/useProductVariantsWithListings";
 
@@ -106,7 +106,7 @@ const formatIndianRupee = (amount: number) => {
 };
 
 // Enhanced Product Card with E-commerce Best Practices
-const CategoryProductCard: React.FC<{ product: CategoryProduct; onQuickView: (p: CategoryProduct) => void; }> = ({ product, onQuickView }) => {
+const CategoryProductCard: React.FC<{ product: CategoryProduct; onQuickView: (p: CategoryProduct) => void; category: string; }> = ({ product, onQuickView, category }) => {
     
     const formatPrice = (amount: number) => {
         try {
@@ -123,7 +123,7 @@ const CategoryProductCard: React.FC<{ product: CategoryProduct; onQuickView: (p:
     };
     
     return (
-        <Link to={`/product/${product.id}`} className="block">
+        <Link to={`/product/${product.id}?category=${category}`} className="block">
             <Card className="group overflow-hidden bg-card border-2 border-border/40 hover:border-border/80 transition-all duration-300 hover:shadow-xl hover:-translate-y-1 dark:bg-gray-900/50 dark:border-gray-600/60 dark:hover:border-gray-500 dark:hover:bg-gray-900/80 h-full flex flex-col">
                 {/* Image Section - Optimized for Perfect Display */}
                 <div className="relative aspect-[4/3] overflow-hidden bg-gradient-to-br from-muted/20 to-muted/40 dark:from-muted/40 dark:to-muted/60 p-3">
@@ -275,7 +275,7 @@ const Category: React.FC = () => {
     } = useProductVariantsByCategory(slug ?? "", sort);
     
     // Get total count for display
-    const { data: totalVariantsCount } = useProductVariantsTotalCount(slug);
+    const { data: totalVariantsCount } = useCategoryVariantsTotalCount(slug);
 
     // Reset display count when filters change
     useEffect(() => {
@@ -811,7 +811,7 @@ const Category: React.FC = () => {
                     <section className="flex-1 w-full">
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-6">
                             {displayedProducts.map((p) => (
-                                <CategoryProductCard key={p.id} product={p} onQuickView={onQuickView} />
+                                <CategoryProductCard key={p.id} product={p} onQuickView={onQuickView} category={slug ?? ""} />
                             ))}
                         </div>
 

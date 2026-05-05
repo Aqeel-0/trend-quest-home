@@ -14,7 +14,7 @@ export default function ProductGallery({ images, alt }: ProductGalleryProps) {
   const [current, setCurrent] = useState(0);
   const [hoveredImage, setHoveredImage] = useState<string | null>(null);
   const [thumbnailStart, setThumbnailStart] = useState(0);
-  const thumbnailsToShow = 5;
+  const thumbnailsToShow = 5; // Show 5 thumbnails at once
 
   // Calculate if we can scroll left or right
   const canScrollLeft = thumbnailStart > 0;
@@ -49,29 +49,31 @@ export default function ProductGallery({ images, alt }: ProductGalleryProps) {
   };
 
   return (
-    <div className="flex gap-4">
+    <div className="flex gap-4 mt-[30px]">
       {/* Thumbnails on the left with Flipkart-style navigation */}
-      <div className="relative flex flex-col gap-2 sm:gap-3 w-20">
-        {/* Left arrow (top) */}
-        {canScrollLeft && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={scrollLeft}
-            className="h-8 w-full p-0 rounded-full bg-white border-gray-300 hover:bg-gray-50 shadow-sm"
-            aria-label="Scroll thumbnails left"
-          >
-            <ChevronLeft className="h-4 w-4 rotate-90" />
-          </Button>
-        )}
+      <div className="relative flex flex-col items-center w-24">
+        {/* Top arrow container */}
+        <div className="w-20 h-8 mb-2 flex items-center justify-center">
+          {canScrollLeft && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={scrollLeft}
+              className="h-8 w-8 p-0 rounded-full bg-white border-gray-300 hover:bg-gray-50 shadow-sm flex items-center justify-center"
+              aria-label="Scroll thumbnails left"
+            >
+              <ChevronLeft className="h-4 w-4 rotate-90 text-black" />
+            </Button>
+          )}
+        </div>
 
         {/* Thumbnail container with smooth scrolling */}
-        <div className="relative overflow-hidden" style={{ height: `${thumbnailsToShow * 64 + (thumbnailsToShow - 1) * 8}px` }}>
+        <div className="relative overflow-hidden w-20" style={{ height: `${thumbnailsToShow * 90 + (thumbnailsToShow - 1) * 8}px` }}>
           <ul 
             className="transition-transform duration-300 ease-in-out"
             style={{ 
-              transform: `translateY(-${thumbnailStart * 72}px)`,
-              height: `${images.length * 72}px`
+              transform: `translateY(-${thumbnailStart * 98}px)`,
+              height: `${images.length * 98}px`
             }}
           >
             {images.map((src, idx) => {
@@ -82,8 +84,8 @@ export default function ProductGallery({ images, alt }: ProductGalleryProps) {
               return (
                 <li 
                   key={src + idx} 
-                  className="mb-2 last:mb-0"
-                  style={{ height: '64px' }}
+                  className="last:mb-0"
+                  style={{ width: '80px', height: '90px', margin: '0 auto 8px' }}
                 >
                   <button
                     type="button"
@@ -91,17 +93,17 @@ export default function ProductGallery({ images, alt }: ProductGalleryProps) {
                     onMouseEnter={() => setHoveredImage(src)}
                     onMouseLeave={() => setHoveredImage(null)}
                     className={cn(
-                      "w-full h-full overflow-hidden rounded-md border transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                      "w-full h-full overflow-hidden rounded-md border-2 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
                       isActive
-                        ? "ring-2 ring-blue-500 border-blue-500"
-                        : "border-gray-300 hover:border-gray-400 hover:shadow-md"
+                        ? "border-blue-500 ring-0"
+                        : "border-gray-200 hover:border-gray-300 hover:shadow-sm"
                     )}
                     aria-label={`Show image ${idx + 1}`}
                   >
                     <img
                       src={src}
                       alt={`${alt} thumbnail ${idx + 1}`}
-                      className="h-full w-full object-contain bg-gray-50"
+                      className="h-full w-full object-contain bg-gray-50 p-1"
                       loading="lazy"
                     />
                   </button>
@@ -111,27 +113,29 @@ export default function ProductGallery({ images, alt }: ProductGalleryProps) {
           </ul>
         </div>
 
-        {/* Right arrow (bottom) */}
-        {canScrollRight && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={scrollRight}
-            className="h-8 w-full p-0 rounded-full bg-white border-gray-300 hover:bg-gray-50 shadow-sm"
-            aria-label="Scroll thumbnails right"
-          >
-            <ChevronRight className="h-4 w-4 rotate-90" />
-          </Button>
-        )}
+        {/* Bottom arrow container */}
+        <div className="w-20 h-8 mt-2 flex items-center justify-center">
+          {canScrollRight && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={scrollRight}
+              className="h-8 w-8 p-0 rounded-full bg-white border-gray-300 hover:bg-gray-50 shadow-sm flex items-center justify-center"
+              aria-label="Scroll thumbnails right"
+            >
+              <ChevronRight className="h-4 w-4 rotate-90 text-black" />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Main image on the right */}
-      <div className="group overflow-hidden rounded-lg bg-muted/40 flex-1 max-w-md">
+      <div className="group overflow-hidden rounded-lg bg-white flex-1 max-w-md shadow-sm">
         <AspectRatio ratio={1}>
           <img
             src={mainImage}
             alt={alt}
-            className="h-full w-full object-contain bg-gray-50 transition-all duration-300 group-hover:scale-105"
+            className="h-full w-full object-contain bg-gray-50 transition-all duration-300 group-hover:scale-105 mt-7"
             loading="eager"
           />
         </AspectRatio>

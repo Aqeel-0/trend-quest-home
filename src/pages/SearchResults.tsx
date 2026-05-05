@@ -7,21 +7,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Separator } from "@/components/ui/separator";
 import SearchFilters, { FiltersState } from "@/components/SearchFilters";
 import SearchResultCard, { type SearchProduct } from "@/components/SearchResultCard";
+import { useHomePageProducts, HomePageVariant } from "@/hooks/useHomePageProducts";
+import { extractPrimaryImage } from "@/hooks/useProductVariantsWithListings";
 
 import { Search } from "lucide-react";
-
-// Assets (using existing demo images)
-import imgHeadphones from "@/assets/prod-headphones.jpg";
-import imgSneakers from "@/assets/prod-sneakers.jpg";
-import imgWatch from "@/assets/prod-watch.jpg";
-import imgLaptop from "@/assets/prod-laptop.jpg";
-import imgCoffee from "@/assets/prod-coffeemaker.jpg";
-import imgController from "@/assets/prod-controller.jpg";
-
-
-
-import { useSearchProducts } from "@/hooks/useProducts";
-import { formatCurrency } from "@/utils/currency";
 
 type SortKey = "lowest" | "highest" | "popular" | "newest";
 
@@ -34,68 +23,99 @@ function useDebounced<T>(value: T, delay = 300) {
   return debounced;
 }
 
+const mapVariantToSearchProduct = (variant: HomePageVariant): SearchProduct => {
+  const listings = variant.listings || [];
+  const sortedListings = [...listings].sort((a, b) => a.price - b.price);
+  const lowestPriceListing = sortedListings[0];
+  const imageUrl = extractPrimaryImage(variant.images) || "";
+
+  const prices = listings.map((l) => l.price);
+  const ratedListings = listings.filter((l) => l.rating != null && l.rating > 0);
+
+  return {
+    id: variant.id,
+    title: variant.name || variant.products?.model_name || "Product",
+    images: [imageUrl, imageUrl],
+    lowestPrice: lowestPriceListing?.price || 0,
+    lowestStore: { name: lowestPriceListing?.store_name || "N/A" },
+    priceRange: prices.length > 0 ? [Math.min(...prices), Math.max(...prices)] : [0, 0],
+    rating:
+      ratedListings.length > 0
+        ? ratedListings.reduce((s, l) => s + (l.rating || 0), 0) / ratedListings.length
+        : 0,
+    reviews: listings.reduce((s, l) => s + (l.review_count || 0), 0),
+  };
+};
+
 export default function SearchResults() {
   const [params, setParams] = useSearchParams();
   const q = params.get("q") ?? "";
   const [query, setQuery] = useState(q);
   const debouncedQuery = useDebounced(query);
 
-  // Fetch products from Supabase
-  const { data: searchProducts, isLoading } = useSearchProducts(debouncedQuery);
+  const { data: variants = [], isLoading } = useHomePageProducts();
 
-  // Convert Supabase data to SearchProduct format
-  const demoProducts: SearchProduct[] = useMemo(() => {
-    if (!searchProducts) return [];
-    
-    const fallbackImages = [imgHeadphones, imgSneakers, imgWatch, imgLaptop, imgCoffee, imgController];
-    
-    return searchProducts.map((product, index) => ({
-      id: product.id,
-      title: product.model_name,
-      images: [fallbackImages[index % fallbackImages.length], fallbackImages[index % fallbackImages.length]],
-      lowestPrice: product.min_price || 0,
-      lowestStore: { name: product.brands?.name || "Multiple stores" },
-      priceRange: [product.min_price || 0, product.max_price || product.min_price || 0],
-      rating: product.rating || 4.0,
-      reviews: Math.floor(Math.random() * 1000) + 100, // Random for demo
-    }));
-  }, [searchProducts]);
-
-  // Build lists from data
+  // Build filter lists from real data
   const allBrands = useMemo(() => {
-    if (!searchProducts) return ["Acme", "ZenX", "Nova", "Swift", "Aeron"];
-    
-    const brandSet = new Set(searchProducts
-      .map(p => p.brands?.name)
-      .filter(Boolean)
-    );
-    return Array.from(brandSet);
-  }, [searchProducts]);
-  
-  const allStores = ["NovaMart", "PriceHub", "QuickBuy", "Shoply"];
+    const brandSet = new Set<string>();
+    variants.forEach((v) => {
+      if (v.products?.brands?.name) brandSet.add(v.products.brands.name);
+    });
+    return Array.from(brandSet).sort();
+  }, [variants]);
 
-  const prices = demoProducts.flatMap((p) => p.priceRange ?? [p.lowestPrice, p.lowestPrice]);
-  const minPrice = Math.min(...prices);
-  const maxPrice = Math.max(...prices);
+  const allStores = useMemo(() => {
+    const storeSet = new Set<string>();
+    variants.forEach((v) =>
+      (v.listings || []).forEach((l) => {
+        if (l.store_name) storeSet.add(l.store_name);
+      })
+    );
+    return Array.from(storeSet).sort();
+  }, [variants]);
+
+  const { minPrice: dataMinPrice, maxPrice: dataMaxPrice } = useMemo(() => {
+    let min = Infinity;
+    let max = 0;
+    variants.forEach((v) =>
+      (v.listings || []).forEach((l) => {
+        if (l.price < min) min = l.price;
+        if (l.price > max) max = l.price;
+      })
+    );
+    return { minPrice: min === Infinity ? 0 : min, maxPrice: max === 0 ? 100000 : max };
+  }, [variants]);
 
   const [filters, setFilters] = useState<FiltersState>({
-    price: [minPrice, maxPrice],
-    min: minPrice,
-    max: maxPrice,
+    price: [0, 100000],
+    min: 0,
+    max: 100000,
     selectedBrands: [],
     minRating: null,
     inStockOnly: false,
     selectedStores: [],
   });
 
+  // Sync filter price bounds with data
+  useEffect(() => {
+    if (dataMaxPrice > 0) {
+      setFilters((s) => ({
+        ...s,
+        price: [dataMinPrice, dataMaxPrice],
+        min: dataMinPrice,
+        max: dataMaxPrice,
+      }));
+    }
+  }, [dataMinPrice, dataMaxPrice]);
+
   const [sortBy, setSortBy] = useState<SortKey>("lowest");
   const [visible, setVisible] = useState(12);
 
   // SEO
   useEffect(() => {
-    const title = query ? `Search results for "${query}" | ShopCompare` : "Search | ShopCompare";
+    const title = query ? `Search results for "${query}" | TrendQuest` : "Browse all products | TrendQuest";
     document.title = title;
-    const desc = `Find the best prices across stores for ${query || "your favorite products"}. Compare deals on ShopCompare.`;
+    const desc = `Find the best prices across stores for ${query || "your favorite products"}. Compare deals on TrendQuest.`;
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.setAttribute("content", desc);
     else {
@@ -116,58 +136,148 @@ export default function SearchResults() {
     if (debouncedQuery) next.set("q", debouncedQuery);
     else next.delete("q");
     setParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery]);
 
-  const filtered = useMemo(() => {
-    let items = demoProducts.slice();
+  // Filter and sort at variant level, then map to SearchProduct
+  const visibleItems = useMemo(() => {
+    let items = variants.slice();
 
+    // Search query
     if (debouncedQuery) {
       const key = debouncedQuery.toLowerCase();
-      items = items.filter((p) => p.title.toLowerCase().includes(key));
+      items = items.filter(
+        (v) =>
+          v.name?.toLowerCase().includes(key) ||
+          v.products?.model_name?.toLowerCase().includes(key) ||
+          v.products?.brands?.name?.toLowerCase().includes(key)
+      );
     }
 
-    // Price range
-    items = items.filter((p) => {
-      const [min, max] = p.priceRange ?? [p.lowestPrice, p.lowestPrice];
+    // Brand filter
+    if (filters.selectedBrands.length > 0) {
+      items = items.filter((v) =>
+        filters.selectedBrands.includes(v.products?.brands?.name || "")
+      );
+    }
+
+    // Store filter
+    if (filters.selectedStores.length > 0) {
+      items = items.filter((v) =>
+        (v.listings || []).some((l) => filters.selectedStores.includes(l.store_name))
+      );
+    }
+
+    // Rating filter
+    if (filters.minRating) {
+      items = items.filter((v) => {
+        const ratedListings = (v.listings || []).filter((l) => l.rating != null && l.rating > 0);
+        if (ratedListings.length === 0) return false;
+        const avg =
+          ratedListings.reduce((s, l) => s + (l.rating || 0), 0) / ratedListings.length;
+        return avg >= filters.minRating!;
+      });
+    }
+
+    // Stock filter
+    if (filters.inStockOnly) {
+      items = items.filter((v) =>
+        (v.listings || []).some((l) => l.stock_status === "in_stock")
+      );
+    }
+
+    // Price range filter
+    items = items.filter((v) => {
+      const prices = (v.listings || []).map((l) => l.price);
+      if (prices.length === 0) return false;
+      const min = Math.min(...prices);
+      const max = Math.max(...prices);
       return max >= filters.price[0] && min <= filters.price[1];
     });
 
-    // Stores
-    if (filters.selectedStores.length) {
-      items = items.filter((p) => filters.selectedStores.includes(p.lowestStore.name));
-    }
-
-    // Brands
-    if (filters.selectedBrands.length) {
-      items = items.filter((p) => filters.selectedBrands.includes(p.lowestStore.name));
-    }
-
-    // Rating
-    if (filters.minRating) items = items.filter((p) => p.rating >= filters.minRating!);
-
-    // Availability (demo: alternate availability by id)
-    if (filters.inStockOnly) items = items.filter((p) => parseInt(p.id) % 2 === 0);
-
+    // Sort
     switch (sortBy) {
       case "lowest":
-        items.sort((a, b) => a.lowestPrice - b.lowestPrice);
+        items.sort((a, b) => {
+          const aMin = Math.min(...(a.listings || []).map((l) => l.price), Infinity);
+          const bMin = Math.min(...(b.listings || []).map((l) => l.price), Infinity);
+          return aMin - bMin;
+        });
         break;
       case "highest":
-        items.sort((a, b) => b.lowestPrice - a.lowestPrice);
+        items.sort((a, b) => {
+          const aMax = Math.max(...(a.listings || []).map((l) => l.price), 0);
+          const bMax = Math.max(...(b.listings || []).map((l) => l.price), 0);
+          return bMax - aMax;
+        });
         break;
       case "popular":
-        items.sort((a, b) => b.reviews - a.reviews);
+        items.sort((a, b) => {
+          const aReviews = (a.listings || []).reduce((s, l) => s + (l.review_count || 0), 0);
+          const bReviews = (b.listings || []).reduce((s, l) => s + (l.review_count || 0), 0);
+          return bReviews - aReviews;
+        });
         break;
       case "newest":
-        items.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+        items.sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
         break;
     }
 
-    return items;
-  }, [debouncedQuery, filters, sortBy, demoProducts]);
+    return items.slice(0, visible).map(mapVariantToSearchProduct);
+  }, [variants, debouncedQuery, filters, sortBy, visible]);
 
-  const visibleItems = filtered.slice(0, visible);
-  const canLoadMore = visible < filtered.length;
+  const totalFiltered = useMemo(() => {
+    // Recalculate total count without the slice
+    let items = variants.slice();
+
+    if (debouncedQuery) {
+      const key = debouncedQuery.toLowerCase();
+      items = items.filter(
+        (v) =>
+          v.name?.toLowerCase().includes(key) ||
+          v.products?.model_name?.toLowerCase().includes(key) ||
+          v.products?.brands?.name?.toLowerCase().includes(key)
+      );
+    }
+    if (filters.selectedBrands.length > 0) {
+      items = items.filter((v) =>
+        filters.selectedBrands.includes(v.products?.brands?.name || "")
+      );
+    }
+    if (filters.selectedStores.length > 0) {
+      items = items.filter((v) =>
+        (v.listings || []).some((l) => filters.selectedStores.includes(l.store_name))
+      );
+    }
+    if (filters.minRating) {
+      items = items.filter((v) => {
+        const ratedListings = (v.listings || []).filter((l) => l.rating != null && l.rating > 0);
+        if (ratedListings.length === 0) return false;
+        const avg =
+          ratedListings.reduce((s, l) => s + (l.rating || 0), 0) / ratedListings.length;
+        return avg >= filters.minRating!;
+      });
+    }
+    if (filters.inStockOnly) {
+      items = items.filter((v) =>
+        (v.listings || []).some((l) => l.stock_status === "in_stock")
+      );
+    }
+    items = items.filter((v) => {
+      const prices = (v.listings || []).map((l) => l.price);
+      if (prices.length === 0) return false;
+      const min = Math.min(...prices);
+      const max = Math.max(...prices);
+      return max >= filters.price[0] && min <= filters.price[1];
+    });
+
+    return items.length;
+  }, [variants, debouncedQuery, filters]);
+
+  const canLoadMore = visible < totalFiltered;
 
   if (isLoading) {
     return (
@@ -199,14 +309,17 @@ export default function SearchResults() {
       {/* Sticky Search Bar */}
       <header className="sticky top-0 z-30 w-full border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto max-w-7xl px-4 py-3">
-          <form onSubmit={(e) => {
-            e.preventDefault();
-            if (query.trim()) {
-              const next = new URLSearchParams(params);
-              next.set("q", query.trim());
-              setParams(next);
-            }
-          }} className="flex items-center gap-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (query.trim()) {
+                const next = new URLSearchParams(params);
+                next.set("q", query.trim());
+                setParams(next);
+              }
+            }}
+            className="flex items-center gap-3"
+          >
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -290,24 +403,46 @@ export default function SearchResults() {
             {/* Results summary */}
             <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
               <span>
-                Showing {visibleItems.length} of {filtered.length} results {query ? `for "${query}"` : ""}
+                Showing {visibleItems.length} of {totalFiltered} results{" "}
+                {query ? `for "${query}"` : ""}
               </span>
             </div>
 
             {/* Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {visibleItems.map((p) => (
-                <SearchResultCard key={p.id} product={p} />)
-              )}
+                <SearchResultCard key={p.id} product={p} />
+              ))}
             </div>
+
+            {/* Empty state */}
+            {visibleItems.length === 0 && (
+              <div className="text-center py-16">
+                <p className="text-muted-foreground">No products found{query ? ` matching "${query}"` : ""}.</p>
+                {query && (
+                  <Button
+                    variant="outline"
+                    className="mt-4"
+                    onClick={() => {
+                      setQuery("");
+                      const next = new URLSearchParams(params);
+                      next.delete("q");
+                      setParams(next);
+                    }}
+                  >
+                    Clear search
+                  </Button>
+                )}
+              </div>
+            )}
 
             {/* Load More */}
             <div className="mt-6 flex justify-center">
               {canLoadMore ? (
                 <Button onClick={() => setVisible((v) => v + 8)}>Load More</Button>
-              ) : (
+              ) : visibleItems.length > 0 ? (
                 <span className="text-sm text-muted-foreground">No more results</span>
-              )}
+              ) : null}
             </div>
           </section>
         </div>

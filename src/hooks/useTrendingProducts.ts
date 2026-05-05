@@ -24,6 +24,12 @@ export interface Brand {
   logo_url: string | null;
 }
 
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface Product {
   id: string;
   model_name: string;
@@ -33,6 +39,7 @@ export interface Product {
   specifications: Record<string, any>;
   status: string;
   brands: Brand;
+  category: Category;
 }
 
 export interface ProductImage {
@@ -107,18 +114,6 @@ const fetchTrendingProducts = async (): Promise<ProductVariant[]> => {
     console.error('Error fetching trending products:', error);
     throw new Error(error.message);
   }
-
-  // Log the raw data for debugging
-  console.log('Raw product data from database:', JSON.stringify(data, null, 2));
-
-  // Log image data for each product
-  data?.forEach((product: any, index: number) => {
-    console.log(`Product ${index + 1} - ${product.products?.model_name || 'Unnamed'}`);
-    console.log('Images:', product.images);
-    console.log('Listings count:', product.listings?.length || 0);
-    console.log('----------------------------------');
-  });
-
   return data as unknown as ProductVariant[];
 };
 

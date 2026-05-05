@@ -1,5 +1,5 @@
 import React from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import ProductGallery from "@/components/ProductGallery";
 import PriceComparisonTable from "@/components/PriceComparisonTable";
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +9,11 @@ import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbP
 import { Card, CardContent } from "@/components/ui/card";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import ProductCard from "@/components/ProductCard";
+import RelatedProductsSection from "@/components/RelatedProductsSection";
 import { Star } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useProducts } from "@/hooks/useProducts";
-import { useVariantSelectionLogic, extractAllImages, extractPrimaryImage, useRelatedProducts } from "@/hooks/useProductVariantsWithListings";
+import { useVariantSelectionLogic, extractAllImages, extractPrimaryImage } from "@/hooks/useProductVariantsWithListings";
 import { formatCurrency } from "@/utils/currency";
 import { PerformanceMonitor } from "@/components/PerformanceMonitor";
 
@@ -100,6 +101,7 @@ const VariantSelection = ({
                   <div 
                     className={`
                       relative w-16 h-16 rounded-lg border-2 overflow-hidden transition-all duration-200
+                      flex items-center justify-center bg-white p-1
                       ${isSelected 
                         ? 'border-primary' 
                         : 'border-input hover:border-primary/50'
@@ -111,7 +113,8 @@ const VariantSelection = ({
                         <img
                           src={variantImage}
                           alt={`${color} variant`}
-                          className="w-full h-full object-cover"
+                          className="max-h-full max-w-full object-contain"
+                          style={{ width: 'auto', height: 'auto' }}
                           onError={(e) => {
                             // Fallback to colored background if image fails to load
                             const target = e.target as HTMLImageElement;
@@ -225,7 +228,10 @@ const FallbackVariants = ({ variants }: { variants: any[] }) => {
 export default function Product() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [relatedProductsPage, setRelatedProductsPage] = React.useState(1);
+  const [searchParams] = useSearchParams();
+  
+  // Get category from URL params for breadcrumb
+  const categoryParam = searchParams.get('category');
   
   // Use the optimized variant selection logic
   const {
@@ -238,11 +244,6 @@ export default function Product() {
     handleOptionChange
   } = useVariantSelectionLogic(id ?? "");
   
-  // Related products with pagination
-  const { data: relatedProductsData } = useRelatedProducts(selectedVariant, relatedProductsPage, 8);
-  
-  // Fallback related products for when no similar products found
-  const { data: fallbackProducts } = useProducts(4);
 
   // Process product data
   const processedProductData = React.useMemo(() => {
@@ -298,39 +299,27 @@ export default function Product() {
     }));
   }, [selectedVariant]);
 
-  // Related products
-  const related = React.useMemo(() => {
-    // Use price-based related products if available
-    if (relatedProductsData?.products && relatedProductsData.products.length > 0) {
-      return relatedProductsData.products.map((product) => ({
-        id: product.id,
-        title: product.name,
-        image: product.primaryImage || prodLaptop,
-        lowestPrice: formatCurrency(product.minPrice),
-        store: `${product.storeCount} store${product.storeCount > 1 ? 's' : ''}`,
-      }));
+  // Generate breadcrumb based on category
+  const breadcrumbData = React.useMemo(() => {
+    const categoryMap: Record<string, { name: string; slug: string }> = {
+      'smartphones': { name: 'Smartphones', slug: 'smartphones' },
+      'laptops': { name: 'Laptops', slug: 'laptops' },
+      'headphones': { name: 'Headphones', slug: 'headphones' },
+      'watches': { name: 'Watches', slug: 'watches' },
+      'gaming': { name: 'Gaming', slug: 'gaming' },
+      'home-appliances': { name: 'Home Appliances', slug: 'home-appliances' },
+      'tablets': { name: 'Tablets', slug: 'tablets' },
+      'accessories': { name: 'Accessories', slug: 'accessories' },
+    };
+    
+    if (categoryParam && categoryMap[categoryParam]) {
+      return categoryMap[categoryParam];
     }
+    
+    // Default fallback
+    return { name: 'Products', slug: 'smartphones' };
+  }, [categoryParam]);
 
-    // Fallback to general products
-    if (fallbackProducts) {
-      const fallbackImages = [prodController, prodWatch, prodLaptop, prodHeadphones];
-      return fallbackProducts.map((product, index) => ({
-        id: product.id,
-        title: product.model_name,
-        image: fallbackImages[index % fallbackImages.length],
-        lowestPrice: product.min_price ? formatCurrency(product.min_price) : "N/A",
-        store: "Multiple stores",
-      }));
-    }
-
-    // Last resort fallback
-    return [
-      { id: "rel-1", title: "Ergonomic Wireless Mouse", image: prodController, lowestPrice: "$29.99", store: "NovaMart" },
-      { id: "rel-2", title: "Portable Bluetooth Speaker", image: prodWatch, lowestPrice: "$49.00", store: "QuickBuy" },
-      { id: "rel-3", title: "USB‑C Fast Charger 65W", image: prodLaptop, lowestPrice: "$24.50", store: "Shoply" },
-      { id: "rel-4", title: "Hi‑Res In‑Ear Monitors", image: prodHeadphones, lowestPrice: "$89.00", store: "PriceHub" },
-    ];
-  }, [relatedProductsData, fallbackProducts]);
 
   // Memoized product schema
   const productSchema = React.useMemo(() => ({
@@ -418,7 +407,7 @@ export default function Product() {
 
   return (
     <div className="container mx-auto px-4 py-6 lg:py-8">
-      {/* Breadcrumb */}
+      {/* Dynamic Breadcrumb */}
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
@@ -429,7 +418,7 @@ export default function Product() {
           <BreadcrumbSeparator />
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
-              <Link to="/category/smartphones">Smartphones</Link>
+              <Link to={`/category/${breadcrumbData.slug}`}>{breadcrumbData.name}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -541,86 +530,11 @@ export default function Product() {
       </div>
 
       {/* Related products */}
-      <section className="mt-12">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">
-            Related products
-            {relatedProductsData?.totalCount ? (
-              <span className="text-sm font-normal text-muted-foreground ml-2">
-                ({relatedProductsData.totalCount} similar products)
-              </span>
-            ) : null}
-          </h2>
-          <Link to="/category/smartphones" className="text-sm underline underline-offset-4">See all</Link>
-        </div>
-        
-        <Carousel opts={{ align: "start", loop: true }}>
-          <CarouselContent>
-            {related.map((p) => (
-              <CarouselItem key={p.id} className="basis-2/3 sm:basis-1/2 md:basis-1/3 lg:basis-1/4 xl:basis-1/5">
-                <ProductCard product={p} />
-              </CarouselItem>
-            ))}
-          </CarouselContent>
-          <CarouselPrevious />
-          <CarouselNext />
-        </Carousel>
-        
-        {/* Pagination for related products */}
-        {relatedProductsData && relatedProductsData.totalPages > 1 && (
-          <div className="mt-6 flex items-center justify-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRelatedProductsPage(prev => Math.max(1, prev - 1))}
-              disabled={relatedProductsPage === 1}
-            >
-              Previous
-            </Button>
-            
-            <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(5, relatedProductsData.totalPages) }, (_, i) => {
-                const pageNum = relatedProductsPage <= 3 
-                  ? i + 1 
-                  : relatedProductsPage >= relatedProductsData.totalPages - 2
-                    ? relatedProductsData.totalPages - 4 + i
-                    : relatedProductsPage - 2 + i;
-                    
-                if (pageNum < 1 || pageNum > relatedProductsData.totalPages) return null;
-                
-                return (
-                  <Button
-                    key={pageNum}
-                    variant={pageNum === relatedProductsPage ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setRelatedProductsPage(pageNum)}
-                    className="w-8 h-8 p-0"
-                  >
-                    {pageNum}
-                  </Button>
-                );
-              })}
-            </div>
-            
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setRelatedProductsPage(prev => Math.min(relatedProductsData.totalPages, prev + 1))}
-              disabled={relatedProductsPage === relatedProductsData.totalPages}
-            >
-              Next
-            </Button>
-          </div>
-        )}
-        
-        {/* No related products message */}
-        {relatedProductsData && relatedProductsData.products.length === 0 && (
-          <div className="text-center py-8 text-muted-foreground">
-            <p>No similar products found in this price range.</p>
-            <p className="text-sm mt-1">Try browsing our full collection below.</p>
-          </div>
-        )}
-      </section>
+      <RelatedProductsSection 
+        currentVariant={selectedVariant}
+        title="Related products"
+        limit={12}
+      />
 
       <script
         type="application/ld+json"
