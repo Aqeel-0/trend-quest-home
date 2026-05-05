@@ -28,13 +28,13 @@ export default function SearchResultCard({ product }: { product: SearchProduct }
         <img
           src={product.images[0]}
           alt={`${product.title} primary image`}
-          className="h-full w-full object-cover transition-opacity duration-200 opacity-100 group-hover:opacity-0"
+          className="h-full w-full object-contain transition-opacity duration-200 opacity-100 group-hover:opacity-0"
           loading="lazy"
         />
         <img
           src={secondary}
           alt={`${product.title} alternate image`}
-          className="absolute inset-0 h-full w-full object-cover transition-opacity duration-200 opacity-0 group-hover:opacity-100"
+          className="absolute inset-0 h-full w-full object-contain transition-opacity duration-200 opacity-0 group-hover:opacity-100"
           loading="lazy"
         />
       </div>
