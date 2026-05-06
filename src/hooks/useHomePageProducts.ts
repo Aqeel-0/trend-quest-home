@@ -5,8 +5,8 @@ export interface HomePageVariant {
   id: string;
   name: string;
   product_id: string;
-  images: any;
-  attributes: any;
+  images: unknown;
+  attributes: unknown;
   created_at: string;
   products: {
     id: string;

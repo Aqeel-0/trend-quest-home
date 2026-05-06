@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -49,17 +49,20 @@ const mapVariantToSearchProduct = (variant: SearchVariant): SearchProduct => {
   };
 };
 
-export default function SearchResults() {
+export default function Brand() {
+  const { name: brandSlug } = useParams<{ name: string }>();
   const [params, setParams] = useSearchParams();
 
-  // Read URL params
-  const q = params.get("q") ?? "";
-  const brandParam = params.get("brand") ?? "";
+  // Capitalise brand name for display (e.g. "oneplus" → "OnePlus" not handled,
+  // but at minimum make first letter uppercase)
+  const brandName = brandSlug
+    ? brandSlug.charAt(0).toUpperCase() + brandSlug.slice(1)
+    : "";
 
+  const q = params.get("q") ?? "";
   const [query, setQuery] = useState(q);
   const debouncedQuery = useDebounced(query);
 
-  // Pass both query + brand to the hook
   const {
     data,
     isLoading,
@@ -67,20 +70,13 @@ export default function SearchResults() {
     isFetchingNextPage,
     fetchNextPage,
     hasNextPage,
-  } = useSearchVariants(debouncedQuery, brandParam);
+  } = useSearchVariants(debouncedQuery, brandName);
 
   const allVariants = useMemo(
     () => data?.pages?.flatMap((p) => p.variants) ?? [],
     [data]
   );
   const totalServerCount = data?.pages?.[0]?.totalCount ?? 0;
-
-  // Build filter option lists from returned data
-  const allBrands = useMemo(() => {
-    const s = new Set<string>();
-    allVariants.forEach((v) => { if (v.products?.brands?.name) s.add(v.products.brands.name); });
-    return Array.from(s).sort();
-  }, [allVariants]);
 
   const allStores = useMemo(() => {
     const s = new Set<string>();
@@ -116,11 +112,9 @@ export default function SearchResults() {
 
   const [sortBy, setSortBy] = useState<SortKey>("lowest");
 
-  // SEO
   useEffect(() => {
-    const base = brandParam ? `${brandParam} products` : (query ? `"${query}"` : "All products");
-    document.title = `${base} | TrendQuest`;
-    const desc = `Compare prices for ${base} across top retailers on TrendQuest.`;
+    document.title = `${brandName} Products | TrendQuest`;
+    const desc = `Compare ${brandName} prices across top retailers on TrendQuest.`;
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.setAttribute("content", desc);
     else {
@@ -129,9 +123,8 @@ export default function SearchResults() {
       m.content = desc;
       document.head.appendChild(m);
     }
-  }, [query, brandParam]);
+  }, [brandName]);
 
-  // Sync text query to URL (leave brand param untouched)
   useEffect(() => {
     const next = new URLSearchParams(params);
     if (debouncedQuery) next.set("q", debouncedQuery);
@@ -140,13 +133,9 @@ export default function SearchResults() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery]);
 
-  // Client-side filter + sort on top of server results
   const filteredVariants = useMemo(() => {
     let items = allVariants.slice();
 
-    if (filters.selectedBrands.length > 0) {
-      items = items.filter((v) => filters.selectedBrands.includes(v.products?.brands?.name || ""));
-    }
     if (filters.selectedStores.length > 0) {
       items = items.filter((v) => (v.listings || []).some((l) => filters.selectedStores.includes(l.store_name)));
     }
@@ -199,19 +188,6 @@ export default function SearchResults() {
   const clearFilters = () =>
     setFilters((s) => ({ ...s, price: [s.min, s.max], selectedBrands: [], selectedStores: [], minRating: null, inStockOnly: false }));
 
-  const clearBrand = () => {
-    const next = new URLSearchParams(params);
-    next.delete("brand");
-    setParams(next);
-  };
-
-  /* ---------- heading helpers ---------- */
-  const pageTitle = brandParam
-    ? brandParam
-    : debouncedQuery
-      ? <>Results for <span className="font-normal text-muted-foreground">"{debouncedQuery}"</span></>
-      : "All products";
-
   const countLabel = isLoading
     ? "Loading products…"
     : `${visibleItems.length} ${visibleItems.length === 1 ? "result" : "results"}${totalServerCount > allVariants.length ? ` of ${totalServerCount}+` : ""}`;
@@ -237,7 +213,7 @@ export default function SearchResults() {
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search for products, brands, or models"
+                placeholder={`Search within ${brandName}`}
                 className="h-11 rounded-full border-border/70 bg-secondary/50 pl-11 pr-10 text-sm placeholder:text-muted-foreground/70 focus-visible:bg-background"
                 aria-label="Search products"
               />
@@ -264,7 +240,7 @@ export default function SearchResults() {
                 <SheetHeader><SheetTitle>Filters</SheetTitle></SheetHeader>
                 <div className="mt-6">
                   <SearchFilters
-                    brands={allBrands}
+                    brands={[]}
                     stores={allStores}
                     state={filters}
                     onChange={(next) => setFilters((s) => ({ ...s, ...next }))}
@@ -294,33 +270,18 @@ export default function SearchResults() {
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
-        {/* Breadcrumb for brand pages */}
-        {brandParam && (
-          <nav className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
-            <ChevronRight className="h-3.5 w-3.5" />
-            <span className="text-foreground font-medium">{brandParam}</span>
-          </nav>
-        )}
+        {/* Breadcrumb */}
+        <nav className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground">
+          <Link to="/" className="hover:text-foreground transition-colors">Home</Link>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="text-foreground font-medium">{brandName}</span>
+        </nav>
 
         {/* Page title + count */}
         <div className="mb-6 flex flex-col gap-1.5 sm:mb-8">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              {pageTitle}
-            </h1>
-            {/* Active brand pill — click × to clear */}
-            {brandParam && (
-              <button
-                type="button"
-                onClick={clearBrand}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-              >
-                {brandParam}
-                <X className="h-3 w-3" />
-              </button>
-            )}
-          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            {brandName}
+          </h1>
           <p className="text-sm text-muted-foreground">{countLabel}</p>
         </div>
 
@@ -328,7 +289,7 @@ export default function SearchResults() {
           {/* Desktop sidebar */}
           <aside className="sticky top-[84px] hidden h-fit w-60 shrink-0 md:block">
             <SearchFilters
-              brands={allBrands}
+              brands={[]}
               stores={allStores}
               state={filters}
               onChange={(next) => setFilters((s) => ({ ...s, ...next }))}
@@ -363,36 +324,14 @@ export default function SearchResults() {
               <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-card/50 py-24 text-center">
                 <Search className="mb-4 h-10 w-10 text-muted-foreground/50" />
                 <p className="text-base font-medium text-foreground">
-                  No products found{brandParam ? ` for "${brandParam}"` : debouncedQuery ? ` for "${debouncedQuery}"` : ""}
+                  No products found for "{brandName}"
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Try a different keyword or adjust your filters.
                 </p>
-                <div className="mt-6 flex flex-wrap justify-center gap-2">
-                  {brandParam && (
-                    <Button variant="outline" size="sm" className="rounded-full" onClick={clearBrand}>
-                      Clear brand filter
-                    </Button>
-                  )}
-                  {debouncedQuery && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-full"
-                      onClick={() => {
-                        setQuery("");
-                        const next = new URLSearchParams(params);
-                        next.delete("q");
-                        setParams(next);
-                      }}
-                    >
-                      Clear search
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm" className="rounded-full" onClick={clearFilters}>
-                    Clear filters
-                  </Button>
-                </div>
+                <Button variant="outline" size="sm" className="mt-6 rounded-full" onClick={clearFilters}>
+                  Clear filters
+                </Button>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">

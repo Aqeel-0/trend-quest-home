@@ -1,79 +1,88 @@
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import RatingStars from "./RatingStars";
 import { Link } from "react-router-dom";
+import { ImageOff, Star } from "lucide-react";
+import { formatCurrency } from "@/utils/currency";
 
 export type SearchProduct = {
   id: string;
   title: string;
-  images: string[]; // [primary, secondary]
-  lowestPrice: number; // in INR
+  brand?: string;
+  images: string[];
+  lowestPrice: number;
   lowestStore: { name: string; logo?: string };
   priceRange?: [number, number];
-  rating: number; // 0 - 5
+  rating: number;
   reviews: number;
+  storeCount?: number;
 };
 
-const formatINR = (val: number) =>
-  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(val);
-
 export default function SearchResultCard({ product }: { product: SearchProduct }) {
+  const primary = product.images[0];
   const secondary = product.images[1] ?? product.images[0];
+  const hasImage = !!primary;
 
   return (
-    <Card className="group overflow-hidden hover-scale shadow-subtle hover:shadow-elevated transition-shadow">
-      <div className="relative aspect-[4/3] bg-muted/40">
-        <img
-          src={product.images[0]}
-          alt={`${product.title} primary image`}
-          className="h-full w-full object-contain transition-opacity duration-200 opacity-100 group-hover:opacity-0"
-          loading="lazy"
-        />
-        <img
-          src={secondary}
-          alt={`${product.title} alternate image`}
-          className="absolute inset-0 h-full w-full object-contain transition-opacity duration-200 opacity-0 group-hover:opacity-100"
-          loading="lazy"
-        />
+    <Link
+      to={`/product/${product.id}`}
+      aria-label={`View details for ${product.title}`}
+      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-300 hover:-translate-y-1 hover:border-border hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="relative aspect-square overflow-hidden bg-white">
+        {hasImage ? (
+          <>
+            <img
+              src={primary}
+              alt={product.title}
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-contain p-6 transition-all duration-500 ease-out group-hover:scale-[1.04] group-hover:opacity-0"
+            />
+            <img
+              src={secondary}
+              alt=""
+              aria-hidden
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-contain p-6 opacity-0 transition-all duration-500 ease-out group-hover:scale-[1.04] group-hover:opacity-100"
+            />
+          </>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <ImageOff className="h-10 w-10 text-muted-foreground/30" />
+          </div>
+        )}
       </div>
 
-      <CardContent className="p-4">
-        <h3 className="font-medium leading-tight line-clamp-2" title={product.title}>{product.title}</h3>
+      <div className="flex flex-1 flex-col gap-1.5 p-4">
+        {product.brand && (
+          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">
+            {product.brand}
+          </span>
+        )}
 
-        <div className="mt-2 flex items-center gap-2">
-          <RatingStars rating={product.rating} />
-          <span className="text-xs text-muted-foreground">({product.reviews.toLocaleString()})</span>
-        </div>
+        <h3
+          className="line-clamp-2 min-h-[2.5rem] text-[0.875rem] font-bold leading-snug tracking-tight text-foreground"
+          title={product.title}
+        >
+          {product.title}
+        </h3>
 
-        <div className="mt-3 flex items-center justify-between">
-          <div className="text-lg font-semibold">{formatINR(product.lowestPrice)}</div>
-          <Badge variant="secondary">Lowest price</Badge>
-        </div>
+        {product.rating > 0 && (
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-2.5 py-1 text-xs font-medium text-white w-fit">
+            <Star className="h-3 w-3 fill-yellow-300 text-yellow-300" />
+            <span>{product.rating.toFixed(1)}</span>
+            {product.reviews > 0 && <span className="opacity-80">({product.reviews.toLocaleString()})</span>}
+          </div>
+        )}
 
-        <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-          <span>From</span>
-          <span className="font-medium text-foreground">{formatINR(product.lowestPrice)}</span>
-          <span>at</span>
-          <Avatar className="h-5 w-5">
-            {product.lowestStore.logo ? (
-              <AvatarImage src={product.lowestStore.logo} alt={`${product.lowestStore.name} logo`} />
-            ) : (
-              <AvatarFallback>{product.lowestStore.name.slice(0, 2).toUpperCase()}</AvatarFallback>
-            )}
-          </Avatar>
-          <span className="truncate max-w-[120px]" title={product.lowestStore.name}>{product.lowestStore.name}</span>
+        <div className="mt-auto pt-3 space-y-0.5">
+          <span className="text-base font-bold tracking-tight text-foreground">
+            {formatCurrency(product.lowestPrice)}
+          </span>
+          <p className="text-[11px] text-muted-foreground/70">
+            {product.storeCount && product.storeCount > 1
+              ? `Across ${product.storeCount} stores`
+              : `at ${product.lowestStore.name}`}
+          </p>
         </div>
-
-        <div className="mt-3">
-          <Button asChild className="w-full">
-            <Link to={`/product/${product.id}`} aria-label={`Compare prices for ${product.title}`}>
-              Compare Prices
-            </Link>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+    </Link>
   );
 }

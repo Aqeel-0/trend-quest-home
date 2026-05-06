@@ -3,6 +3,8 @@ import Footer from "@/components/Footer";
 import { SectionHeading } from "@/components/SectionHeading";
 import { ProductCarousel } from "@/components/ProductCarousel";
 import { Product } from "@/components/ProductCard";
+import BrandStrip from "@/components/BrandStrip";
+import ValueProps from "@/components/ValueProps";
 import { useHomePageProducts, HomePageVariant } from "@/hooks/useHomePageProducts";
 import { extractPrimaryImage } from "@/hooks/useProductVariantsWithListings";
 import { formatCurrency } from "@/utils/currency";
@@ -14,13 +16,14 @@ const mapVariantToProduct = (variant: HomePageVariant): Product => {
   const listings = variant.listings || [];
   const sortedListings = [...listings].sort((a, b) => a.price - b.price);
   const lowestPriceListing = sortedListings[0];
-
   const imageUrl = extractPrimaryImage(variant.images) || "";
-
   const storeCount = listings.length;
-  const storeDisplay = storeCount > 1
-    ? `${storeCount} stores`
-    : (lowestPriceListing?.store_name || "View deals");
+  const storeDisplay =
+    storeCount > 1
+      ? `Across ${storeCount} stores`
+      : lowestPriceListing?.store_name
+        ? `at ${lowestPriceListing.store_name}`
+        : "View deals";
 
   return {
     id: variant.id,
@@ -39,17 +42,64 @@ const mapVariantToProduct = (variant: HomePageVariant): Product => {
   };
 };
 
+/* -------------------------------------------------------------------------- */
+/*  Reusable carousel section wrapper — gives the arrows room to peek outside  */
+/* -------------------------------------------------------------------------- */
+function CarouselSection({
+  eyebrow,
+  title,
+  description,
+  actionTo,
+  actionLabel,
+  products,
+  isLoading,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  actionTo: string;
+  actionLabel: string;
+  products: Product[];
+  isLoading: boolean;
+}) {
+  return (
+    <section className="pt-20 md:pt-28">
+      <div className="container">
+        <SectionHeading
+          eyebrow={eyebrow}
+          title={title}
+          description={description}
+          action={
+            <Link
+              to={actionTo}
+              className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:text-accent transition-base"
+            >
+              {actionLabel} <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          }
+        />
+      </div>
+      {/* px-4/6 mirrors .container padding so arrows can translate outside */}
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-screen-xl">
+          <ProductCarousel products={products} isLoading={isLoading} skeletonCount={6} />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Page                                                                        */
+/* -------------------------------------------------------------------------- */
 const Index = () => {
   const { data: variants = [], isLoading } = useHomePageProducts();
 
-  const trendingProducts = useMemo(
-    () =>
-      variants
-        .filter((v) => v.products?.is_featured)
-        .slice(0, 6)
-        .map(mapVariantToProduct),
-    [variants]
-  );
+  const trendingProducts = useMemo(() => {
+    const featured = variants.filter((v) => v.products?.is_featured);
+    const pool = featured.length >= 6 ? featured : variants;
+    return pool.slice(0, 10).map(mapVariantToProduct);
+  }, [variants]);
 
   const recentProducts = useMemo(
     () =>
@@ -60,101 +110,135 @@ const Index = () => {
             new Date(b.products.launch_date!).getTime() -
             new Date(a.products.launch_date!).getTime()
         )
-        .slice(0, 6)
+        .slice(0, 10)
         .map(mapVariantToProduct),
     [variants]
   );
 
-  const allProductCards = useMemo(
-    () => variants.map(mapVariantToProduct),
+  const topDeals = useMemo(
+    () =>
+      variants
+        .filter((v) => (v.listings || []).some((l) => (l.discount_percentage ?? 0) > 0))
+        .sort((a, b) => {
+          const aMax = Math.max(...(a.listings || []).map((l) => l.discount_percentage ?? 0), 0);
+          const bMax = Math.max(...(b.listings || []).map((l) => l.discount_percentage ?? 0), 0);
+          return bMax - aMax;
+        })
+        .slice(0, 10)
+        .map(mapVariantToProduct),
     [variants]
   );
 
-  // Gather real store names for the marquee
+  const FALLBACK_STORES = [
+    "Amazon", "Flipkart", "Croma", "Reliance Digital", "Vijay Sales",
+    "Tata Cliq", "Myntra", "Snapdeal", "Paytm Mall", "Samsung Shop",
+  ];
+
   const storeNames = useMemo(() => {
     const names = new Set<string>();
-    variants.forEach((v) =>
-      (v.listings || []).forEach((l) => {
-        if (l.store_name) names.add(l.store_name);
-      })
-    );
-    return Array.from(names).slice(0, 10);
+    variants.forEach((v) => (v.listings || []).forEach((l) => { if (l.store_name) names.add(l.store_name); }));
+    const fromData = Array.from(names);
+    // Merge DB names with fallbacks, deduplicate, keep at least 8 entries
+    const merged = Array.from(new Set([...fromData, ...FALLBACK_STORES]));
+    return merged.slice(0, 12);
   }, [variants]);
+
+  const showDeals = isLoading || topDeals.length >= 3;
+  const showRecent = isLoading || recentProducts.length >= 3;
 
   return (
     <div className="min-h-screen flex flex-col">
       <main className="flex-1">
         <Hero />
 
-        {/* Store marquee strip */}
-        {storeNames.length > 0 && (
-          <section className="border-y border-border py-8 overflow-hidden bg-secondary/30">
-            <div className="container">
-              <p className="text-center text-xs uppercase tracking-[0.22em] text-muted-foreground mb-6">
-                Tracking prices across top retailers
-              </p>
-              <div className="relative overflow-hidden">
-                <div className="flex animate-marquee gap-16 whitespace-nowrap">
-                  {[...storeNames, ...storeNames, ...storeNames].map((s, i) => (
-                    <span
-                      key={`${s}-${i}`}
-                      className="text-2xl md:text-3xl font-semibold tracking-tight text-foreground/40 hover:text-foreground transition-base"
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
-              </div>
+        {/* Retailer marquee — always visible, scrolls left → right */}
+        <div className="border-y border-border/70 py-8 bg-secondary/30">
+          <p className="text-center text-xs uppercase tracking-[0.22em] text-muted-foreground mb-6">
+            Tracking prices across top retailers
+          </p>
+          {/* overflow-hidden clips the seamless duplicate; the strip must NOT be inside .container */}
+          <div className="overflow-hidden">
+            <div className="flex animate-marquee-rtl gap-14 whitespace-nowrap w-max">
+              {/* duplicate once — the keyframe moves from -50% to 0 so we need 2× content */}
+              {[...storeNames, ...storeNames].map((s, i) => (
+                <span
+                  key={`${s}-${i}`}
+                  className="text-xl md:text-2xl font-semibold tracking-tight text-foreground/35 hover:text-foreground/70 transition-base select-none"
+                >
+                  {s}
+                </span>
+              ))}
             </div>
-          </section>
-        )}
+          </div>
+        </div>
 
-        {/* Trending */}
-        <section className="container py-20 md:py-28">
-          <SectionHeading
-            eyebrow="Trending"
-            title="What everyone's buying right now."
-            description="Real search and price-tracking data from the last 7 days. Updated daily."
-            action={
-              <Link
-                to="/search"
-                className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:text-accent transition-base"
-              >
-                View all <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            }
-          />
-          {isLoading ? (
-            <div className="text-sm text-muted-foreground">Loading trending products…</div>
-          ) : (
-            <ProductCarousel products={trendingProducts} />
-          )}
+        {/* Brand strip */}
+        <section className="container pt-16 md:pt-20">
+          <div className="mb-8">
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-accent">
+              Brands
+            </span>
+            <h2 className="mt-3 text-2xl md:text-3xl font-semibold tracking-[-0.02em] text-foreground">
+              Shop by brand
+            </h2>
+          </div>
+          <BrandStrip />
         </section>
 
-        {/* Recently launched */}
-        {recentProducts.length > 0 && (
-          <section className="container py-12 md:py-20">
-            <SectionHeading
-              eyebrow="New arrivals"
-              title="Just hit the market."
-              description="The latest product launches with day-one pricing across every major retailer."
-              action={
-                <Link
-                  to="/search"
-                  className="inline-flex items-center gap-1 text-sm font-medium text-foreground hover:text-accent transition-base"
-                >
-                  View all <ArrowUpRight className="h-4 w-4" />
-                </Link>
-              }
-            />
-            <ProductCarousel products={recentProducts} />
-          </section>
+        {/* Trending carousel */}
+        <CarouselSection
+          eyebrow="Trending"
+          title="Trending now"
+          description="Real search and price-tracking data from the last 7 days. Updated daily."
+          actionTo="/trending"
+          actionLabel="View all"
+          products={trendingProducts}
+          isLoading={isLoading}
+        />
+
+        {/* Top deals carousel */}
+        {showDeals && (
+          <CarouselSection
+            eyebrow="Top deals"
+            title="Biggest price drops this week."
+            description="Hand-picked from products that just hit a new low across one or more retailers."
+            actionTo="/deals"
+            actionLabel="See all deals"
+            products={topDeals}
+            isLoading={isLoading}
+          />
+        )}
+
+        {/* Value props */}
+        <section className="container pt-24 md:pt-32">
+          <div className="mb-10">
+            <span className="text-xs font-medium uppercase tracking-[0.2em] text-accent">
+              Why TrendQuest
+            </span>
+            <h2 className="mt-3 text-2xl md:text-3xl font-semibold tracking-[-0.02em] text-foreground max-w-2xl">
+              The calmest way to find the best price.
+            </h2>
+          </div>
+          <ValueProps />
+        </section>
+
+        {/* New arrivals carousel */}
+        {showRecent && (
+          <CarouselSection
+            eyebrow="New arrivals"
+            title="Just hit the market."
+            description="The latest launches with day-one pricing across every retailer we track."
+            actionTo="/new-arrivals"
+            actionLabel="View all"
+            products={recentProducts}
+            isLoading={isLoading}
+          />
         )}
 
         {/* CTA banner */}
-        <section className="container py-12 md:py-20">
+        <section className="container py-24 md:py-32">
           <div className="relative overflow-hidden rounded-[2rem] bg-foreground text-background px-8 py-14 md:px-16 md:py-20">
-            <div className="absolute -top-16 -right-16 h-64 w-64 rounded-full bg-accent/30 blur-3xl" />
+            <div className="absolute -top-16 -right-16 h-64 w-64 rounded-full bg-accent/30 blur-3xl" aria-hidden />
             <div className="relative max-w-2xl">
               <span className="text-xs uppercase tracking-[0.22em] text-background/60">
                 Save smarter
@@ -183,21 +267,8 @@ const Index = () => {
             </div>
           </div>
         </section>
-
-        {/* All products catalog */}
-        <section className="container py-12 md:py-20 pb-28">
-          <SectionHeading
-            eyebrow="Catalog"
-            title="Every product we track."
-            description="Tap any product to see live prices from all retailers."
-          />
-          {isLoading ? (
-            <div className="text-sm text-muted-foreground">Loading products…</div>
-          ) : (
-            <ProductCarousel products={allProductCards} />
-          )}
-        </section>
       </main>
+
       <Footer />
     </div>
   );
