@@ -12,6 +12,8 @@ export const Hero = () => {
     e.preventDefault();
     if (query.trim()) {
       navigate(`/search?q=${encodeURIComponent(query.trim())}`);
+    } else {
+      navigate("/search");
     }
   };
 
@@ -19,10 +21,10 @@ export const Hero = () => {
     <section className="relative overflow-hidden">
       <div className="absolute inset-0 gradient-hero" aria-hidden />
 
-      <div className="relative container pt-20 pb-16 md:pt-28 md:pb-24 lg:pt-32 lg:pb-28">
+      <div className="relative container pt-20 pb-20 md:pt-28 md:pb-28 lg:pt-32 lg:pb-32">
         {/* Eyebrow */}
         <div className="flex justify-center mb-8 animate-fade-up">
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/60 backdrop-blur px-4 py-1.5 text-xs font-medium text-muted-foreground">
+          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card/70 backdrop-blur px-4 py-1.5 text-xs font-medium text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-accent" />
             Live prices across top retailers · updated daily
           </span>
@@ -71,31 +73,60 @@ export const Hero = () => {
 
         {/* Quick links */}
         <div
-          className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground animate-fade-up"
+          className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted-foreground animate-fade-up"
           style={{ animationDelay: "240ms" }}
         >
           <span className="text-xs uppercase tracking-wider">Popular:</span>
-          {["Smartphones", "Laptops", "Headphones", "Watches"].map((q) => (
+          {[
+            { label: "Smartphones", slug: "smartphones" },
+            { label: "Laptops", slug: "laptops" },
+            { label: "Headphones", slug: "headphones" },
+            { label: "Watches", slug: "smartwatches" },
+          ].map((q) => (
             <Link
-              key={q}
-              to={`/category/${q.toLowerCase()}`}
+              key={q.slug}
+              to={`/category/${q.slug}`}
               className="hover:text-foreground transition-base underline-offset-4 hover:underline"
             >
-              {q}
+              {q.label}
             </Link>
           ))}
         </div>
 
-        {/* CTA */}
+        {/* Stats strip */}
         <div
-          className="mt-16 mx-auto max-w-2xl text-center animate-fade-up"
+          className="mx-auto mt-16 grid max-w-2xl grid-cols-3 gap-4 animate-fade-up"
           style={{ animationDelay: "300ms" }}
+        >
+          {[
+            { v: "10k+", l: "Products tracked" },
+            { v: "30+", l: "Retailers compared" },
+            { v: "24/7", l: "Live price updates" },
+          ].map((s) => (
+            <div
+              key={s.l}
+              className="rounded-2xl border border-border/60 bg-card/60 backdrop-blur px-4 py-4 text-center"
+            >
+              <div className="text-xl md:text-2xl font-semibold tracking-tight text-foreground">
+                {s.v}
+              </div>
+              <div className="mt-1 text-[11px] md:text-xs uppercase tracking-wider text-muted-foreground">
+                {s.l}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Compare CTA */}
+        <div
+          className="mt-10 flex justify-center animate-fade-up"
+          style={{ animationDelay: "360ms" }}
         >
           <Link
             to="/compare"
-            className="inline-flex items-center gap-1.5 rounded-full bg-accent text-accent-foreground px-6 py-3 text-sm font-semibold hover:opacity-90 transition-base"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-base"
           >
-            Compare products <ArrowUpRight className="h-4 w-4" />
+            Or compare products side-by-side <ArrowUpRight className="h-4 w-4" />
           </Link>
         </div>
       </div>

@@ -46,6 +46,7 @@ There is no test runner configured (vitest.config.ts exists but no `test` script
 
 - **CompareProvider** stores variant IDs in localStorage (`tq-compare` key). The NavBar shows a count badge.
 
+- **Code style**: Follow the existing code style and patterns. Use TypeScript for all new code. Use shadcn/ui components for UI elements. Always try to use existing compoents or create compoents that can be used multiple places instead of duplicating codes.
 ## Project conventions
 
 - Path alias `@/` maps to `src/`
@@ -53,3 +54,13 @@ There is no test runner configured (vitest.config.ts exists but no `test` script
 - `src/integrations/supabase/types.ts` is auto-generated from the database schema — do not edit directly
 - `src/integrations/supabase/client.ts` is auto-generated — import `supabase` from there, don't create new clients
 - Data fetching hooks belong in `src/hooks/`, raw query functions in `src/lib/queries/`
+
+<!-- ## graphify
+
+This project has a graphify knowledge graph at graphify-out/.
+
+Rules:
+- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
+- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
+- For cross-module "how does X relate to Y" questions, prefer `graphify query "<question>"`, `graphify path "<A>" "<B>"`, or `graphify explain "<concept>"` over grep — these traverse the graph's EXTRACTED + INFERRED edges instead of scanning files
+- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost) -->

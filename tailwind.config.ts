@@ -69,7 +69,7 @@ export default {
 					sm: 'calc(var(--radius) - 4px)'
 				},
 				fontFamily: {
-					sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif']
+					sans: ['"Satoshi"', 'ui-sans-serif', 'system-ui', 'sans-serif']
 				},
 				boxShadow: {
 					subtle: 'var(--shadow-subtle)',
