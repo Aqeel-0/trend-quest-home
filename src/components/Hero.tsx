@@ -1,21 +1,9 @@
 import { ArrowUpRight, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Link, useNavigate } from "react-router-dom";
-import { useState, FormEvent } from "react";
+import { Link } from "react-router-dom";
+import { useSearchDialog } from "@/contexts/SearchDialogContext";
 
 export const Hero = () => {
-  const [query, setQuery] = useState("");
-  const navigate = useNavigate();
-
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (query.trim()) {
-      navigate(`/search?q=${encodeURIComponent(query.trim())}`);
-    } else {
-      navigate("/search");
-    }
-  };
+  const { open: openSearch } = useSearchDialog();
 
   return (
     <section className="relative overflow-hidden">
@@ -47,29 +35,24 @@ export const Hero = () => {
           Compare real-time prices across top retailers. One search. Every store. Zero noise.
         </p>
 
-        {/* Search */}
-        <form
-          onSubmit={onSubmit}
-          className="mx-auto mt-10 flex max-w-xl items-center gap-2 rounded-full border border-border bg-card shadow-card p-1.5 animate-fade-up"
+        {/* Search trigger */}
+        <div
+          className="mx-auto mt-10 max-w-xl animate-fade-up"
           style={{ animationDelay: "180ms" }}
         >
-          <div className="relative flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search smartphones, laptops, headphones…"
-              className="border-0 bg-transparent pl-10 h-11 focus-visible:ring-0 text-foreground placeholder:text-muted-foreground"
-            />
-          </div>
-          <Button
-            type="submit"
-            size="lg"
-            className="rounded-full h-11 px-6 bg-foreground text-background hover:bg-foreground/90"
+          <button
+            type="button"
+            onClick={openSearch}
+            className="flex w-full items-center gap-3 rounded-full border border-border bg-card shadow-card px-5 h-14 text-sm text-muted-foreground hover:border-border/80 hover:bg-card/80 transition-colors"
+            aria-label="Open search"
           >
-            Search
-          </Button>
-        </form>
+            <Search className="h-4 w-4 shrink-0" />
+            <span className="flex-1 text-left">Search smartphones, laptops, headphones…</span>
+            <kbd className="hidden sm:inline-flex h-6 items-center gap-1 rounded border border-border bg-muted px-2 text-[10px] font-medium text-muted-foreground">
+              ⌘K
+            </kbd>
+          </button>
+        </div>
 
         {/* Quick links */}
         <div
@@ -78,17 +61,17 @@ export const Hero = () => {
         >
           <span className="text-xs uppercase tracking-wider">Popular:</span>
           {[
-            { label: "Smartphones", slug: "smartphones" },
-            { label: "Laptops", slug: "laptops" },
-            { label: "Headphones", slug: "headphones" },
-            { label: "Watches", slug: "smartwatches" },
-          ].map((q) => (
+            { label: "Smartphones", q: "smartphone" },
+            { label: "Laptops", q: "laptop" },
+            { label: "Headphones", q: "headphones" },
+            { label: "Watches", q: "smartwatch" },
+          ].map((item) => (
             <Link
-              key={q.slug}
-              to={`/category/${q.slug}`}
+              key={item.q}
+              to={`/search?q=${encodeURIComponent(item.q)}`}
               className="hover:text-foreground transition-base underline-offset-4 hover:underline"
             >
-              {q.label}
+              {item.label}
             </Link>
           ))}
         </div>

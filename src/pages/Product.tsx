@@ -1,5 +1,5 @@
 import React from "react";
-import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import ProductGallery from "@/components/ProductGallery";
 import PriceComparisonTable from "@/components/PriceComparisonTable";
 import { Badge } from "@/components/ui/badge";
@@ -15,12 +15,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useProducts } from "@/hooks/useProducts";
 import { useVariantSelectionLogic, extractAllImages, extractPrimaryImage } from "@/hooks/useProductVariantsWithListings";
 import { formatCurrency } from "@/utils/currency";
-import { PerformanceMonitor } from "@/components/PerformanceMonitor";
 
-import prodHeadphones from "@/assets/prod-headphones.jpg";
-import prodLaptop from "@/assets/prod-headphones.jpg";
-import prodWatch from "@/assets/prod-headphones.jpg";
-import prodController from "@/assets/prod-headphones.jpg";
 
 // Memoized RatingStars component
 const RatingStars = React.memo(({ rating }: { rating: number }) => {
@@ -227,12 +222,6 @@ const FallbackVariants = ({ variants }: { variants: any[] }) => {
 // Main Product Component
 export default function Product() {
   const { id } = useParams();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  
-  // Get category from URL params for breadcrumb
-  const categoryParam = searchParams.get('category');
-  
   // Use the optimized variant selection logic
   const {
     data,
@@ -251,7 +240,7 @@ export default function Product() {
       return {
         id: id ?? "1",
         title: "Loading...",
-        images: [prodLaptop, prodWatch, prodController, prodHeadphones],
+        images: [] as string[],
         rating: 0,
         reviews: 0,
         short: "",
@@ -259,24 +248,19 @@ export default function Product() {
       };
     }
 
-    // Use variant images if available, otherwise fallback
-    const variantImages = extractAllImages(selectedVariant.images);
-    const images = variantImages.length > 0 ? variantImages : [prodLaptop, prodWatch, prodController, prodHeadphones];
+    const images = extractAllImages(selectedVariant.images);
+
+    const rating = selectedVariant.avgRating ?? 0;
+    const reviews = selectedVariant.totalReviews ?? 0;
 
     return {
       id: data.product.id,
       title: selectedVariant.name || data.product.model_name,
       images,
-      rating: 4.5, // Default rating since rating is computed from listings
-      reviews: Math.floor(Math.random() * 2000) + 100,
+      rating,
+      reviews,
       short: data.product.description || "Product description not available.",
-      features: (data.product.specifications as any)?.features || [
-         "High-quality construction",
-         "Advanced technology", 
-         "Reliable performance",
-         "Excellent value",
-         "Customer satisfaction guaranteed",
-       ],
+      features: (data.product.specifications as any)?.features || [],
     };
   }, [id, data, selectedVariant]);
 
@@ -298,28 +282,6 @@ export default function Product() {
       inStock: listing.stock_status === 'in_stock',
     }));
   }, [selectedVariant]);
-
-  // Generate breadcrumb based on category
-  const breadcrumbData = React.useMemo(() => {
-    const categoryMap: Record<string, { name: string; slug: string }> = {
-      'smartphones': { name: 'Smartphones', slug: 'smartphones' },
-      'laptops': { name: 'Laptops', slug: 'laptops' },
-      'headphones': { name: 'Headphones', slug: 'headphones' },
-      'watches': { name: 'Watches', slug: 'watches' },
-      'gaming': { name: 'Gaming', slug: 'gaming' },
-      'home-appliances': { name: 'Home Appliances', slug: 'home-appliances' },
-      'tablets': { name: 'Tablets', slug: 'tablets' },
-      'accessories': { name: 'Accessories', slug: 'accessories' },
-    };
-    
-    if (categoryParam && categoryMap[categoryParam]) {
-      return categoryMap[categoryParam];
-    }
-    
-    // Default fallback
-    return { name: 'Products', slug: 'smartphones' };
-  }, [categoryParam]);
-
 
   // Memoized product schema
   const productSchema = React.useMemo(() => ({
@@ -393,7 +355,7 @@ export default function Product() {
             <Link to="/" className="inline-flex items-center px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90">
               Go Home
             </Link>
-            <Link to="/category/smartphones" className="inline-flex items-center px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90">
+            <Link to="/search" className="inline-flex items-center px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90">
               Browse Products
             </Link>
           </div>
@@ -407,18 +369,12 @@ export default function Product() {
 
   return (
     <div className="container mx-auto px-4 py-6 lg:py-8">
-      {/* Dynamic Breadcrumb */}
+      {/* Breadcrumb */}
       <Breadcrumb>
         <BreadcrumbList>
           <BreadcrumbItem>
             <BreadcrumbLink asChild>
               <Link to="/">Home</Link>
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem>
-            <BreadcrumbLink asChild>
-              <Link to={`/category/${breadcrumbData.slug}`}>{breadcrumbData.name}</Link>
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator />
@@ -446,14 +402,10 @@ export default function Product() {
 
 
 
-          <p className="text-muted-foreground">{processedProductData.short}</p>
+          {processedProductData.short && (
+            <p className="text-muted-foreground">{processedProductData.short}</p>
+          )}
 
-          <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
-            {processedProductData.features.map((f) => (
-              <li key={f}>{f}</li>
-            ))}
-          </ul>
-          
           {/* Dynamic Variant Selection */}
            {hasVariantOptions && (
              <VariantSelection
@@ -485,44 +437,60 @@ export default function Product() {
           </TabsList>
           <TabsContent value="description" className="animate-in fade-in-50 slide-in-from-top-1">
             <Card>
-              <CardContent className="space-y-3 leading-relaxed p-4 md:p-6">
-                <p>
-                  Experience the future of mobile technology with the Acme Nova Smartphone X. Featuring a stunning 6.7-inch 120Hz OLED display that brings content to life with vibrant colors and smooth scrolling.
-                </p>
-                <p>
-                  The advanced AI-powered triple camera system captures professional-quality photos and videos in any lighting condition. With 5G connectivity and all-day battery life, stay connected and productive wherever you go.
-                </p>
+              <CardContent className="leading-relaxed p-4 md:p-6">
+                {processedProductData.short ? (
+                  <p>{processedProductData.short}</p>
+                ) : (
+                  <p className="text-muted-foreground">No description available for this product.</p>
+                )}
+                {processedProductData.features.length > 0 && (
+                  <ul className="mt-4 list-inside list-disc space-y-1 text-sm text-muted-foreground">
+                    {processedProductData.features.map((f: string) => (
+                      <li key={f}>{f}</li>
+                    ))}
+                  </ul>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
           <TabsContent value="specs" className="animate-in fade-in-50 slide-in-from-top-1">
             <Card>
               <CardContent className="p-4 md:p-6">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Spec label="Display" value="6.7-inch 120Hz OLED" />
-                  <Spec label="Processor" value="Octa-core 3.2GHz" />
-                  <Spec label="Camera" value="108MP + 12MP + 12MP" />
-                  <Spec label="Battery" value="4800mAh with wireless charging" />
-                  <Spec label="OS" value="Android 14" />
-                  <Spec label="Warranty" value="24 months" />
-                </div>
+                {(() => {
+                  const specs = data?.product?.specifications as Record<string, unknown> | null | undefined;
+                  const entries = specs
+                    ? Object.entries(specs).filter(([, v]) => v != null && v !== "" && typeof v !== "object")
+                    : [];
+                  if (entries.length === 0) {
+                    return <p className="text-sm text-muted-foreground">No specifications available.</p>;
+                  }
+                  return (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {entries.map(([k, v]) => (
+                        <Spec key={k} label={k.replace(/_/g, " ")} value={String(v)} />
+                      ))}
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
           <TabsContent id="reviews" value="reviews" className="animate-in fade-in-50 slide-in-from-top-1">
             <Card>
               <CardContent className="space-y-4 p-4 md:p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
+                {processedProductData.rating > 0 ? (
+                  <div className="flex items-center gap-3">
                     <RatingStars rating={processedProductData.rating} />
-                    <span className="text-sm text-muted-foreground">Based on {processedProductData.reviews.toLocaleString()} reviews</span>
+                    <span className="text-sm font-medium">{processedProductData.rating.toFixed(1)}</span>
+                    {processedProductData.reviews > 0 && (
+                      <span className="text-sm text-muted-foreground">
+                        Based on {processedProductData.reviews.toLocaleString()} {processedProductData.reviews === 1 ? "review" : "reviews"}
+                      </span>
+                    )}
                   </div>
-                  <Button variant="secondary">Write a review</Button>
-                </div>
-                <div className="space-y-3 text-sm text-muted-foreground">
-                  <p>"Amazing camera quality and the 120Hz display is incredibly smooth. Best phone I've owned!"</p>
-                  <p>"Battery easily lasts a full day even with heavy use. 5G speeds are impressive."</p>
-                </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No reviews available yet.</p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -541,13 +509,6 @@ export default function Product() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
       />
       
-      {/* Performance Monitor */}
-      <PerformanceMonitor 
-        pageName="Product Page" 
-        onLoadComplete={(loadTime) => {
-          console.log(`🎯 Product page performance: ${loadTime.toFixed(2)}ms`);
-        }}
-      />
     </div>
   );
 }
