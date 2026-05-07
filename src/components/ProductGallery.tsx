@@ -48,6 +48,14 @@ export default function ProductGallery({ images, alt }: ProductGalleryProps) {
     return currentIndex - thumbnailStart;
   };
 
+  if (images.length === 0) {
+    return (
+      <div className="flex items-center justify-center aspect-square rounded-lg bg-muted mt-[30px]">
+        <span className="text-muted-foreground text-sm">No image available</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex gap-4 mt-[30px]">
       {/* Thumbnails on the left with Flipkart-style navigation */}

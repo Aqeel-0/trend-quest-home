@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { ArrowLeftRight, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/sheet";
 import ThemeToggle from "@/components/ThemeToggle";
 import { useCompare } from "@/components/CompareProvider";
+import { SearchTrigger } from "@/components/search/SearchTrigger";
+import { useSearchDialog } from "@/contexts/SearchDialogContext";
 
 const navItems = [
   { to: "/", label: "Home" },
@@ -20,6 +22,7 @@ const navItems = [
 export default function NavBar() {
   const { count } = useCompare();
   const navigate = useNavigate();
+  const { open: openSearch } = useSearchDialog();
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border glass">
@@ -35,17 +38,25 @@ export default function NavBar() {
 
         <nav className="hidden lg:flex items-center gap-1 ml-6">
           {navItems.map((item) => (
-            <Link
+            <NavLink
               key={item.to}
               to={item.to}
-              className="px-3 py-2 rounded-full text-sm font-medium transition-base text-muted-foreground hover:text-foreground hover:bg-secondary"
+              end={item.to === "/"}
+              className={({ isActive }) =>
+                `px-3 py-2 rounded-full text-sm font-medium transition-base ${
+                  isActive
+                    ? "text-foreground bg-secondary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                }`
+              }
             >
               {item.label}
-            </Link>
+            </NavLink>
           ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          <SearchTrigger onClick={openSearch} />
           <ThemeToggle />
 
           <Sheet>
@@ -58,16 +69,23 @@ export default function NavBar() {
               <SheetTitle className="sr-only">Menu</SheetTitle>
               <div className="flex flex-col gap-1 mt-8">
                 {navItems.map((item) => (
-                  <Link
+                  <NavLink
                     key={item.to}
                     to={item.to}
-                    className="px-3 py-3 rounded-xl text-base font-medium transition-base flex items-center justify-between text-muted-foreground hover:text-foreground hover:bg-secondary"
+                    end={item.to === "/"}
+                    className={({ isActive }) =>
+                      `px-3 py-3 rounded-xl text-base font-medium transition-base flex items-center justify-between ${
+                        isActive
+                          ? "text-foreground bg-secondary"
+                          : "text-muted-foreground hover:text-foreground hover:bg-secondary"
+                      }`
+                    }
                   >
                     <span>{item.label}</span>
                     {item.to === "/compare" && count > 0 && (
                       <Badge className="bg-accent text-accent-foreground border-0">{count}</Badge>
                     )}
-                  </Link>
+                  </NavLink>
                 ))}
               </div>
             </SheetContent>
