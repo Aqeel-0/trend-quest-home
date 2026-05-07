@@ -2,7 +2,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation, useNavigationType } from "react-router-dom";
+import {
+  createBrowserRouter,
+  RouterProvider,
+  ScrollRestoration,
+  Outlet,
+} from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { CompareProvider } from "@/components/CompareProvider";
 import { SearchDialogProvider, useSearchDialog } from "@/contexts/SearchDialogContext";
@@ -17,20 +22,6 @@ import SearchResults from "./pages/SearchResults";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient();
-
-const ScrollToTop = () => {
-  const { pathname } = useLocation();
-  const navType = useNavigationType();
-  useEffect(() => {
-    history.scrollRestoration = "manual";
-  }, []);
-  useEffect(() => {
-    if (navType !== "POP") {
-      window.scrollTo(0, 0);
-    }
-  }, [pathname, navType]);
-  return null;
-};
 
 function isInputFocused() {
   const el = document.activeElement;
@@ -64,20 +55,36 @@ function AppShell() {
       <GlobalSearchShortcut />
       <NavBar />
       <SearchDialog open={isOpen} onOpenChange={(v) => !v && close()} />
-      <Routes>
-        <Route path="/" element={<Index />} />
-        <Route path="/search" element={<SearchResults />} />
-        <Route path="/brand/:name" element={<Brand />} />
-        <Route path="/trending" element={<SearchResults />} />
-        <Route path="/deals" element={<SearchResults />} />
-        <Route path="/new-arrivals" element={<SearchResults />} />
-        <Route path="/compare" element={<Compare />} />
-        <Route path="/product/:id" element={<Product />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+      <Outlet />
     </>
   );
 }
+
+function RootLayout() {
+  return (
+    <SearchDialogProvider>
+      <ScrollRestoration />
+      <AppShell />
+    </SearchDialogProvider>
+  );
+}
+
+const router = createBrowserRouter([
+  {
+    element: <RootLayout />,
+    children: [
+      { path: "/", element: <Index /> },
+      { path: "/search", element: <SearchResults /> },
+      { path: "/brand/:name", element: <Brand /> },
+      { path: "/trending", element: <SearchResults /> },
+      { path: "/deals", element: <SearchResults /> },
+      { path: "/new-arrivals", element: <SearchResults /> },
+      { path: "/compare", element: <Compare /> },
+      { path: "/product/:id", element: <Product /> },
+      { path: "*", element: <NotFound /> },
+    ],
+  },
+]);
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} storageKey="theme">
@@ -86,12 +93,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
-            <ScrollToTop />
-            <SearchDialogProvider>
-              <AppShell />
-            </SearchDialogProvider>
-          </BrowserRouter>
+          <RouterProvider router={router} />
         </TooltipProvider>
       </CompareProvider>
     </QueryClientProvider>

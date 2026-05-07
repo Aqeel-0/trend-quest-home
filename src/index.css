@@ -119,10 +119,6 @@
     @apply border-border;
   }
 
-  html {
-    scroll-behavior: smooth;
-  }
-
   body {
     @apply bg-background text-foreground antialiased;
     font-feature-settings: "cv11", "ss01", "cv02";
