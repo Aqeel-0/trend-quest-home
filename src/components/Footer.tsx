@@ -74,22 +74,22 @@ const Footer = () => {
             </h3>
             <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
               <li>
-                <Link to="/category/smartphones" className="hover:text-foreground transition-base">
+                <Link to="/search?q=smartphone" className="hover:text-foreground transition-base">
                   Smartphones
                 </Link>
               </li>
               <li>
-                <Link to="/category/laptops" className="hover:text-foreground transition-base">
+                <Link to="/search?q=laptop" className="hover:text-foreground transition-base">
                   Laptops
                 </Link>
               </li>
               <li>
-                <Link to="/category/headphones" className="hover:text-foreground transition-base">
+                <Link to="/search?q=headphones" className="hover:text-foreground transition-base">
                   Headphones
                 </Link>
               </li>
               <li>
-                <Link to="/category/smartwatches" className="hover:text-foreground transition-base">
+                <Link to="/search?q=smartwatch" className="hover:text-foreground transition-base">
                   Watches
                 </Link>
               </li>

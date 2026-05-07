@@ -157,7 +157,7 @@ const Index = () => {
             Tracking prices across top retailers
           </p>
           {/* overflow-hidden clips the seamless duplicate; the strip must NOT be inside .container */}
-          <div className="overflow-hidden">
+          <div className="overflow-hidden marquee-container">
             <div className="flex animate-marquee-rtl gap-14 whitespace-nowrap w-max">
               {/* duplicate once — the keyframe moves from -50% to 0 so we need 2× content */}
               {[...storeNames, ...storeNames].map((s, i) => (
