@@ -28,7 +28,9 @@ function mapToSearchProduct(item: SearchFullItem): SearchProduct {
     brand: item.subtitle ?? undefined,
     images: item.image_url ? [item.image_url, item.image_url] : ["", ""],
     lowestPrice: item.min_price ?? 0,
-    lowestStore: { name: "" },
+    lowestStore: { name: item.lowest_store_name ?? "" },
+    originalPrice: item.lowest_original_price ?? null,
+    discount: item.lowest_discount_pct ?? null,
     priceRange: item.min_price != null && item.max_price != null
       ? [item.min_price, item.max_price]
       : undefined,

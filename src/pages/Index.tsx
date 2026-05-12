@@ -17,14 +17,6 @@ const mapVariantToProduct = (variant: HomePageVariant): Product => {
   const sortedListings = [...listings].sort((a, b) => a.price - b.price);
   const lowestPriceListing = sortedListings[0];
   const imageUrl = extractPrimaryImage(variant.images) || "";
-  const storeCount = listings.length;
-  const storeDisplay =
-    storeCount > 1
-      ? `Across ${storeCount} stores`
-      : lowestPriceListing?.store_name
-        ? `at ${lowestPriceListing.store_name}`
-        : "View deals";
-
   return {
     id: variant.id,
     title: variant.name || variant.products?.model_name || "Product",
@@ -35,7 +27,8 @@ const mapVariantToProduct = (variant: HomePageVariant): Product => {
       ? formatCurrency(lowestPriceListing.original_price)
       : null,
     discount: lowestPriceListing?.discount_percentage ?? undefined,
-    store: storeDisplay,
+    storeName: lowestPriceListing?.store_name ?? "",
+    storeCount: listings.length,
     rating: lowestPriceListing?.rating ?? undefined,
     reviewCount: lowestPriceListing?.review_count ?? undefined,
     category: variant.products?.categories?.slug,
@@ -48,7 +41,6 @@ const mapVariantToProduct = (variant: HomePageVariant): Product => {
 function CarouselSection({
   eyebrow,
   title,
-  description,
   actionTo,
   actionLabel,
   products,
@@ -56,7 +48,6 @@ function CarouselSection({
 }: {
   eyebrow: string;
   title: string;
-  description: string;
   actionTo: string;
   actionLabel: string;
   products: Product[];
@@ -68,7 +59,6 @@ function CarouselSection({
         <SectionHeading
           eyebrow={eyebrow}
           title={title}
-          description={description}
           action={
             <Link
               to={actionTo}
@@ -189,7 +179,6 @@ const Index = () => {
         <CarouselSection
           eyebrow="Trending"
           title="Trending now"
-          description="Real search and price-tracking data from the last 7 days. Updated daily."
           actionTo="/trending"
           actionLabel="View all"
           products={trendingProducts}
@@ -201,7 +190,6 @@ const Index = () => {
           <CarouselSection
             eyebrow="Top deals"
             title="Biggest price drops this week."
-            description="Hand-picked from products that just hit a new low across one or more retailers."
             actionTo="/deals"
             actionLabel="See all deals"
             products={topDeals}
@@ -227,7 +215,6 @@ const Index = () => {
           <CarouselSection
             eyebrow="New arrivals"
             title="Just hit the market."
-            description="The latest launches with day-one pricing across every retailer we track."
             actionTo="/new-arrivals"
             actionLabel="View all"
             products={recentProducts}
