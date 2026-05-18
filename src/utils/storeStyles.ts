@@ -30,8 +30,8 @@ export function getStoreStyle(storeName: string): StoreStyle {
   return { label: storeName, color: "#6b7280", domain: "" };
 }
 
-export function getStoreFaviconUrl(storeName: string): string {
+export function getStoreLogoUrl(storeName: string): string {
   const { domain } = getStoreStyle(storeName);
   if (!domain) return "";
-  return `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+  return `https://logo.clearbit.com/${domain}`;
 }
