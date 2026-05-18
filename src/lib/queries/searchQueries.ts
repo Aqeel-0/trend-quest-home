@@ -35,6 +35,9 @@ export interface SearchFullItem {
   popularity: number;
   rank: number;
   total_count: number;
+  lowest_store_name: string | null;
+  lowest_original_price: number | null;
+  lowest_discount_pct: number | null;
 }
 
 export interface SearchFullParams {

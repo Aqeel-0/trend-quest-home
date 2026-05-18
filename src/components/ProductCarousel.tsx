@@ -1,25 +1,11 @@
 import { useRef, useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import ProductCard from "@/components/ProductCard";
+import ProductCard, { type Product } from "@/components/ProductCard";
 import ProductCardSkeleton from "@/components/ProductCardSkeleton";
 import { cn } from "@/lib/utils";
 
-interface ProductItem {
-  id: string;
-  title: string;
-  brand?: string;
-  image: string;
-  lowestPrice: string;
-  originalPrice?: string | null;
-  discount?: number;
-  store: string;
-  rating?: number;
-  reviewCount?: number;
-  category?: string;
-}
-
 interface Props {
-  products: ProductItem[];
+  products: Product[];
   isLoading?: boolean;
   skeletonCount?: number;
 }

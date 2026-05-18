@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ImageOff, Star } from "lucide-react";
+import { StoreTag } from "@/components/StoreTag";
 
 export type Product = {
   id: string;
@@ -9,15 +10,24 @@ export type Product = {
   lowestPrice: string;
   originalPrice?: string | null;
   discount?: number;
-  store: string;
+  storeName: string;
+  storeCount?: number;
   rating?: number;
   reviewCount?: number;
   category?: string;
 };
 
+
 const ProductCard = ({ product }: { product: Product }) => {
-  const hasDiscount = product.discount != null && product.discount > 0;
+  const hasDiscount = (product.discount ?? 0) > 0;
   const hasImage = product.image && product.image.length > 0;
+  const extraStores = (product.storeCount ?? 1) - 1;
+  const displayTitle = product.brand && product.title.toLowerCase().startsWith(product.brand.toLowerCase())
+    ? product.title.slice(product.brand.length).trim().replace(/^[-\u2013\u2014,\s]+/, '')
+    : product.title;
+  const brandDisplay = product.brand
+    ? product.brand.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
+    : undefined;
 
   const productUrl = product.category
     ? `/product/${product.id}?category=${product.category}`
@@ -27,23 +37,18 @@ const ProductCard = ({ product }: { product: Product }) => {
     <Link
       to={productUrl}
       aria-label={`View details for ${product.title}`}
-      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-300 hover:-translate-y-1 hover:border-border hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-300 hover:border-border hover:shadow-card-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      {/* Image area */}
-      <div className="relative aspect-[4/5] overflow-hidden bg-white">
+      {/* ── Image ── */}
+      <div className="relative aspect-[4/5] shrink-0 overflow-hidden bg-white">
         {hasDiscount && (
-          <span className="absolute top-3 left-3 z-10 inline-flex items-center rounded-full bg-emerald-500 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white">
-            -{product.discount}%
+          <span className="absolute top-3 right-3 z-10 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+            -{Math.round(product.discount!)}%
           </span>
         )}
-
         {hasImage ? (
-          <img
-            src={product.image}
-            alt={product.title}
-            loading="lazy"
-            className="absolute inset-0 h-full w-full object-contain p-6 transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-          />
+          <img src={product.image} alt={product.title} loading="lazy"
+            className="absolute inset-0 h-full w-full object-contain p-6 transition-transform duration-500 ease-out" />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <ImageOff className="h-10 w-10 text-muted-foreground/30" />
@@ -51,42 +56,49 @@ const ProductCard = ({ product }: { product: Product }) => {
         )}
       </div>
 
-      {/* Body */}
-      <div className="flex flex-1 flex-col gap-1.5 p-4">
-        {product.brand && (
-          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground/80">
-            {product.brand}
-          </span>
-        )}
-
-        <h3 className="line-clamp-2 min-h-[2.5rem] text-[0.875rem] font-bold leading-snug tracking-tight text-foreground">
-          {product.title}
-        </h3>
-
-        {(product.rating ?? 0) > 0 && (
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-2.5 py-1 text-xs font-medium text-white w-fit">
-            <Star className="h-3 w-3 fill-yellow-300 text-yellow-300" />
-            <span>{product.rating!.toFixed(1)}</span>
-            {(product.reviewCount ?? 0) > 0 && (
-              <span className="opacity-80">({product.reviewCount!.toLocaleString()})</span>
-            )}
-          </div>
-        )}
-
-        <div className="mt-auto pt-3 space-y-0.5">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-base font-bold tracking-tight text-foreground">
-              {product.lowestPrice}
+      {/* ── Text body — grows to fill space ── */}
+      <div className="flex flex-col flex-1 bg-slate-50 dark:bg-muted/40">
+        <div className="px-4 pt-3 pb-2 flex flex-col gap-1.5 flex-1">
+          {brandDisplay && (
+            <span className="text-[13px] font-semibold tracking-[0.06em] text-muted-foreground/70">
+              Brand · {brandDisplay}
             </span>
-            {product.originalPrice && (
-              <span className="text-xs text-muted-foreground/60 line-through">
-                {product.originalPrice}
-              </span>
+          )}
+          <h3 className="line-clamp-2 text-[0.9rem] font-bold leading-snug capitalize tracking-[0.02em] text-foreground">
+            {displayTitle}
+          </h3>
+          {/* Fixed-height rating slot keeps all cards aligned */}
+          <div className="h-7 flex items-center">
+            {(product.rating ?? 0) > 0 && (
+              <div className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-foreground">
+                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                <span>{product.rating!.toFixed(1)}</span>
+                {(product.reviewCount ?? 0) > 0 && (
+                  <span className="text-muted-foreground/70">({product.reviewCount!.toLocaleString()})</span>
+                )}
+              </div>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground/70 truncate">
-            {product.store}
-          </p>
+        </div>
+
+        {/* ── Price section — always flush at bottom ── */}
+        <div className="px-4 py-3 bg-slate-100 dark:bg-black/[0.18] rounded-b-2xl space-y-2">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span className="text-xl font-bold text-foreground">{product.lowestPrice}</span>
+            {product.originalPrice && (
+              <span className="text-sm text-muted-foreground/50 line-through">{product.originalPrice}</span>
+            )}
+          </div>
+          {product.storeName && (
+            <div className="flex items-center gap-2">
+              <StoreTag name={product.storeName} />
+              {extraStores > 0 && (
+                <span className="text-[12px] font-medium text-foreground/70 ml-auto">
+                  +{extraStores} more {extraStores === 1 ? "store" : "stores"}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </Link>
@@ -94,3 +106,4 @@ const ProductCard = ({ product }: { product: Product }) => {
 };
 
 export default ProductCard;
+

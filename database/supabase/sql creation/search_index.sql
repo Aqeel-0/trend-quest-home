@@ -153,18 +153,21 @@ CREATE OR REPLACE FUNCTION public.search_full(
   page_offset INT DEFAULT 0
 )
 RETURNS TABLE (
-  entity_id    UUID,
-  title        TEXT,
-  subtitle     TEXT,
-  image_url    TEXT,
-  slug         TEXT,
-  min_price    NUMERIC,
-  max_price    NUMERIC,
-  avg_rating   NUMERIC,
-  has_in_stock BOOLEAN,
-  popularity   INTEGER,
-  rank         REAL,
-  total_count  BIGINT
+  entity_id             UUID,
+  title                 TEXT,
+  subtitle              TEXT,
+  image_url             TEXT,
+  slug                  TEXT,
+  min_price             NUMERIC,
+  max_price             NUMERIC,
+  avg_rating            NUMERIC,
+  has_in_stock          BOOLEAN,
+  popularity            INTEGER,
+  rank                  REAL,
+  total_count           BIGINT,
+  lowest_store_name     TEXT,
+  lowest_original_price NUMERIC,
+  lowest_discount_pct   NUMERIC
 )
 LANGUAGE SQL STABLE AS $$
   WITH n AS (SELECT trim(lower(q)) AS query),
@@ -203,20 +206,38 @@ LANGUAGE SQL STABLE AS $$
       AND (max_price_filter IS NULL OR min_price <= max_price_filter)
       AND (min_rating_filter IS NULL OR avg_rating >= min_rating_filter)
       AND (NOT in_stock_only OR has_in_stock)
+  ),
+  paged AS (
+    SELECT entity_id, title, subtitle, image_url, slug,
+           min_price, max_price, avg_rating, has_in_stock, popularity,
+           (rank + LEAST(popularity::REAL / 10000.0, 0.2))::REAL AS rank,
+           COUNT(*) OVER ()::BIGINT AS total_count
+    FROM filtered
+    ORDER BY
+      CASE WHEN sort_by = 'relevance'  THEN rank END DESC NULLS LAST,
+      CASE WHEN sort_by = 'price_asc'  THEN min_price END ASC NULLS LAST,
+      CASE WHEN sort_by = 'price_desc' THEN min_price END DESC NULLS LAST,
+      CASE WHEN sort_by = 'popular'    THEN popularity END DESC NULLS LAST,
+      CASE WHEN sort_by = 'newest'     THEN updated_at END DESC NULLS LAST,
+      popularity DESC
+    LIMIT page_size OFFSET page_offset
   )
-  SELECT entity_id, title, subtitle, image_url, slug,
-         min_price, max_price, avg_rating, has_in_stock, popularity,
-         (rank + LEAST(popularity::REAL / 10000.0, 0.2))::REAL AS rank,
-         COUNT(*) OVER ()::BIGINT AS total_count
-  FROM filtered
-  ORDER BY
-    CASE WHEN sort_by = 'relevance'  THEN rank END DESC NULLS LAST,
-    CASE WHEN sort_by = 'price_asc'  THEN min_price END ASC NULLS LAST,
-    CASE WHEN sort_by = 'price_desc' THEN min_price END DESC NULLS LAST,
-    CASE WHEN sort_by = 'popular'    THEN popularity END DESC NULLS LAST,
-    CASE WHEN sort_by = 'newest'     THEN updated_at END DESC NULLS LAST,
-    popularity DESC
-  LIMIT page_size OFFSET page_offset;
+  SELECT
+    p.entity_id, p.title, p.subtitle, p.image_url, p.slug,
+    p.min_price, p.max_price, p.avg_rating, p.has_in_stock, p.popularity,
+    p.rank, p.total_count,
+    l.store_name          AS lowest_store_name,
+    l.original_price      AS lowest_original_price,
+    l.discount_percentage AS lowest_discount_pct
+  FROM paged p
+  LEFT JOIN LATERAL (
+    SELECT store_name, original_price, discount_percentage
+    FROM public.listings
+    WHERE variant_id = p.entity_id
+      AND is_active
+    ORDER BY price ASC
+    LIMIT 1
+  ) l ON TRUE;
 $$;
 
 -- Grant RPC execution to public roles
